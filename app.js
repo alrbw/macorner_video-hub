@@ -112,7 +112,7 @@ document.getElementById('btnAnalyze').onclick = async function () {
         btn.disabled = true;
 
         try {
-            const res = await fetch('http://localhost:3000/api/analyze-link', {
+            const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/analyze-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: inputVal })
@@ -474,7 +474,7 @@ async function generateAIScript(fullCode, btn) {
         const elementsContext = `E1: ${getName(iE1)} - ${iE1?.Explanation || ''}\nE2: ${getName(iE2)} - ${iE2?.Explanation || ''}\nE3: ${getName(iE3)} - ${iE3?.Explanation || ''}\nE4: ${getName(iE4)} - ${iE4?.Explanation || ''}\nE5: ${getName(iE5)} - ${iE5?.Explanation || ''}`;
         const eData = { e1: getName(iE1), e2: getName(iE2), e3: getName(iE3), e4: getName(iE4), e5: getName(iE5) };
 
-        const res = await fetch('http://localhost:3000/api/generate-script', {
+        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-script', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -589,7 +589,7 @@ async function requestSceneImage(fullCode) {
     btn.style.background = "#94a3b8";
 
     try {
-        const res = await fetch('http://localhost:3000/api/generate-scene-image', {
+        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-scene-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

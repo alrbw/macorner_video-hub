@@ -151,6 +151,7 @@ const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { OpenAI } = require('openai');
+const PORT = process.env.PORT || 8000;
 
 // Thêm import thư viện SDK chuẩn xác của Google Gemini
 const { GoogleGenAI } = require('@google/genai'); 
@@ -601,4 +602,4 @@ Follow these guidelines carefully:
     }
 });
 
-app.listen(3000, () => console.log(`🚀 Master AI Server running on http://localhost:3000`));
+app.listen(3000, () => console.log(`🚀 Master AI Server running on ${PORT}`));

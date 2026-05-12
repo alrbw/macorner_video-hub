@@ -151,7 +151,6 @@ const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { OpenAI } = require('openai');
-const PORT = process.env.PORT || 8000;
 
 function cleanAIScript(text) {
     if (!text) return "";
@@ -479,8 +478,13 @@ ${elementsContext || 'Focus on gifting appeal and product quality.'}
         res.status(500).json({ error: error.message });
     }
 });
-app.listen(3000, () => console.log(`🚀 Master AI Server running on ${PORT}`));
-// Thêm đoạn này để Koyeb kiểm tra trạng thái
+// Thêm đoạn này để Koyeb kiểm tra trạng thái sống của server
 app.get('/', (req, res) => {
-    res.status(200).send('OK');
+    res.status(200).send('Server is running');
+});
+
+// Chỉnh lại cổng để linh hoạt hơn trên môi trường Cloud
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Master AI Server running on port ${PORT}`);
 });

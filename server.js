@@ -480,4 +480,7 @@ ${elementsContext || 'Focus on gifting appeal and product quality.'}
     }
 });
 app.listen(3000, () => console.log(`🚀 Master AI Server running on ${PORT}`));
-app.get('/', (req, res) => res.send('Server is running!'));
+// Thêm đoạn này để Koyeb kiểm tra trạng thái
+app.get('/', (req, res) => {
+    res.status(200).send('OK');
+});

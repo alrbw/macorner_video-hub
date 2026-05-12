@@ -603,3 +603,4 @@ Follow these guidelines carefully:
 });
 
 app.listen(3000, () => console.log(`🚀 Master AI Server running on ${PORT}`));
+app.get('/', (req, res) => res.send('Server is running!'));

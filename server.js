@@ -5,7 +5,6 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { OpenAI } = require('openai');
 
 function cleanAIScript(text) {
@@ -27,47 +26,39 @@ app.use(express.json({ limit: '50mb' }));
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ==========================================
-// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG & FAVORITE
-// LƯU Ý: Lưu vào ổ /tmp/ để tương thích với Serverless Cloud như Koyeb
+// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG
 // ==========================================
-const STORE_FILE = path.join(os.tmpdir(), 'scripts_store.json');
-let MEMORY_STORE = null;
+const STORE_FILE = path.join(__dirname, 'scripts_store.json');
 
 function readStore() {
-    if (MEMORY_STORE) return MEMORY_STORE;
     if (!fs.existsSync(STORE_FILE)) return [];
     try { 
-        MEMORY_STORE = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
-        return MEMORY_STORE;
+        return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
     } catch(e) { 
         return []; 
     }
 }
 
 function writeStore(data) {
-    MEMORY_STORE = data;
-    try { fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8'); } catch(e) { console.error("Lỗi ghi đĩa:", e); }
+    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-// Lấy danh sách Store
 app.get('/api/store', (req, res) => {
     res.json(readStore());
 });
 
-// Lưu Script mới vào Store
 app.post('/api/store', (req, res) => {
     try {
         const store = readStore();
         const newScript = { 
-            id: Date.now().toString() + Math.random().toString(36).substring(2,5), 
-            code: req.body.code || req.body.fullCode, 
+            id: Date.now().toString(), 
+            code: req.body.code || req.body.fullCode, // Hỗ trợ cả 2 tên biến
             productBase: req.body.productBase || req.body.product,
             targetCode: req.body.targetCode,
             content: req.body.content,
-            isFavorite: false, // Mặc định chưa thả sao
             date: new Date().toISOString() 
         };
-        store.unshift(newScript); 
+        store.unshift(newScript); // Đẩy lên đầu danh sách
         writeStore(store);
         res.json({ success: true, item: newScript });
     } catch(e) {
@@ -75,24 +66,6 @@ app.post('/api/store', (req, res) => {
     }
 });
 
-// Bật tắt Favorite (Thả tim)
-app.patch('/api/store/:id/favorite', (req, res) => {
-    try {
-        let store = readStore();
-        const itemIndex = store.findIndex(s => s.id === req.params.id);
-        if (itemIndex > -1) {
-            store[itemIndex].isFavorite = !store[itemIndex].isFavorite; // Đảo trạng thái
-            writeStore(store);
-            res.json({ success: true, isFavorite: store[itemIndex].isFavorite });
-        } else {
-            res.status(404).json({ error: "Item not found" });
-        }
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi cập nhật sao: " + e.message });
-    }
-});
-
-// Xóa tất cả Store
 app.delete('/api/store', (req, res) => {
     try {
         writeStore([]);
@@ -102,7 +75,6 @@ app.delete('/api/store', (req, res) => {
     }
 });
 
-// Xóa 1 Script theo ID
 app.delete('/api/store/:id', (req, res) => {
     try {
         let store = readStore();
@@ -435,6 +407,9 @@ ${elementsContext}
     }
 });
 
+// =====================================================================
+// API TẠO PROMPT QUAY VIDEO (ĐÃ SỬA LỖI UNEXPECTED TOKEN)
+// =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
@@ -472,6 +447,11 @@ ${script}`;
         console.error("API UGC Prompt Error:", error);
         res.status(500).json({ error: error.message });
     }
+});
+
+
+app.get('/', (req, res) => {
+    res.status(200).send('Server is running');
 });
 
 const PORT = process.env.PORT || 8000;

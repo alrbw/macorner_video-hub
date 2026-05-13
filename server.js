@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const fs = require('fs');
+const path = require('path');
 const { OpenAI } = require('openai');
 
 function cleanAIScript(text) {
@@ -22,6 +24,68 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ==========================================
+// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG
+// ==========================================
+const STORE_FILE = path.join(__dirname, 'scripts_store.json');
+
+function readStore() {
+    if (!fs.existsSync(STORE_FILE)) return [];
+    try { 
+        return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
+    } catch(e) { 
+        return []; 
+    }
+}
+
+function writeStore(data) {
+    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+app.get('/api/store', (req, res) => {
+    res.json(readStore());
+});
+
+app.post('/api/store', (req, res) => {
+    try {
+        const store = readStore();
+        const newScript = { 
+            id: Date.now().toString(), 
+            code: req.body.code || req.body.fullCode, // Hỗ trợ cả 2 tên biến
+            productBase: req.body.productBase || req.body.product,
+            targetCode: req.body.targetCode,
+            content: req.body.content,
+            date: new Date().toISOString() 
+        };
+        store.unshift(newScript); // Đẩy lên đầu danh sách
+        writeStore(store);
+        res.json({ success: true, item: newScript });
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi ghi file Store: " + e.message });
+    }
+});
+
+app.delete('/api/store', (req, res) => {
+    try {
+        writeStore([]);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
+    }
+});
+
+app.delete('/api/store/:id', (req, res) => {
+    try {
+        let store = readStore();
+        store = store.filter(s => s.id !== req.params.id);
+        writeStore(store);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
+    }
+});
+// ==========================================
 
 async function getLarkToken() {
     const res = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', {
@@ -61,7 +125,6 @@ app.post('/api/analyze-link', async (req, res) => {
         let isUrl = inputStr.startsWith('http');
         let asin = "";
 
-        // BÓC TÁCH ASIN TỪ URL (Lấy đoạn giữa dấu '-' cuối và '?') HOẶC TỪ INPUT TAY
         if (isUrl) {
             const urlWithoutQuery = inputStr.split('?')[0].replace(/\/$/, "");
             const urlParts = urlWithoutQuery.split('-');
@@ -72,7 +135,6 @@ app.post('/api/analyze-link', async (req, res) => {
 
         let title = "", description = "", imageUrl = "";
 
-        // CHỈ CÀO DỮ LIỆU HTML NẾU INPUT LÀ URL (Phục vụ dữ liệu cho AI)
         if (isUrl) {
             try {
                 const response = await axios.get(inputStr, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
@@ -129,7 +191,6 @@ app.post('/api/analyze-link', async (req, res) => {
         let targetCode = "";
         let productBase = "";
 
-        // TÌM KIẾM TRONG LARK BASE BẰNG ASIN ĐỂ BÓC "PR-xxx" LÀM MÃ TARGET CODE (CODE MẪU)
         try {
             if (process.env.PRODUCT_APP_TOKEN && process.env.PRODUCT_TABLE_ID) {
                 const token = await getLarkToken();
@@ -152,7 +213,6 @@ app.post('/api/analyze-link', async (req, res) => {
             console.error("Lark API Error:", err.message);
         }
 
-        // Fallback: Nếu không tìm thấy PR- trong Lark, mới dùng RegExp trên Input
         if (!targetCode) {
             const tcMatch = asin.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
             if (tcMatch) targetCode = tcMatch[1].toUpperCase();
@@ -205,7 +265,6 @@ app.post('/api/generate-script', async (req, res) => {
         scoredNotes.sort((a, b) => b.score - a.score);
         const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
 
-        // BÓC TÁCH AN TOÀN eData TỪ FRONTEND GỬI LÊN (KHÔNG CẦN TỚI ELEMENTS_DATA NỮA)
         const getEDataName = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.name || '') : (eData?.[key] || '');
         const getEDataExp = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.exp || '') : '';
         const getEDataGroup = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.group || '') : '';
@@ -216,7 +275,6 @@ app.post('/api/generate-script', async (req, res) => {
         let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
         let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        // ÉP KIỂU STRING() BẢO VỆ LỖI MATCH()
         let insightName = String(e4Name);
         let buyer = "The Viewer", receiver = "The Gift Recipient";
         let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
@@ -349,12 +407,52 @@ ${elementsContext}
     }
 });
 
-// 1. Thêm Route trả về trang thái OK cho Koyeb
+// =====================================================================
+// API TẠO PROMPT QUAY VIDEO (ĐÃ SỬA LỖI UNEXPECTED TOKEN)
+// =====================================================================
+app.post('/api/generate-ugc-prompt', async (req, res) => {
+    try {
+        const { script, recipientDesc } = req.body;
+        
+        if (!script || !recipientDesc) {
+            return res.status(400).json({ error: "Missing required fields for UGC Prompt." });
+        }
+
+        const systemRole = "You are a UGC content creation expert.";
+        
+        const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
+
+Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, trang phục, thái độ) dựa trên thông tin: "${recipientDesc}" và bối cảnh (không gian, ánh sáng, đảm bảo là bối cảnh đời thường của một người Mỹ trung bình). Nếu có xuất hiện nhân vật khác thì sẽ đối chiếu với đối tượng người nhận để tạo thêm nhân vật trong prompt với độ tuổi phù hợp.
+Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
+Cấu trúc mỗi Scene:
+Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.
+Dialogue: Lời thoại bằng tiếng Anh, tự nhiên, gần gũi (tự phát triển từ nội dung thô hoặc lấy thoại từ nội dung thô cho sẵn).
+Luồng nội dung: Scene 1 (Hook) -> Scene 2 (Features/Feel) -> Scene 3 (Unique Selling Point/Customization) -> Scene 4 (Emotional Value) -> Scene 5 (Closing).
+
+NỘI DUNG THÔ:
+${script}`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: systemRole },
+                { role: "user", content: textPrompt }
+            ],
+            temperature: 0.5,
+            max_tokens: 1200
+        });
+
+        res.json({ prompt: completion.choices[0].message.content.trim() });
+    } catch (error) {
+        console.error("API UGC Prompt Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/', (req, res) => {
     res.status(200).send('Server is running');
 });
 
-// 2. Cấu hình Port linh hoạt và lắng nghe địa chỉ 0.0.0.0
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Master AI Server running on port ${PORT}`);

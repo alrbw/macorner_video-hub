@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V36 (Filtered Smart Mix E1/E5, Full-width Canva Matrix)
+ * FULL AUTO V43 (Anti HTML Crash, Smart Error Handling, Smart Mix)
  */
 
 let RAW_DATA = [];
@@ -23,7 +23,6 @@ let MANUAL_E2 = [];
 let MANUAL_E4 = [];
 let CURRENT_MATRIX_LIMIT = 5;
 
-// Mảng theo dõi các Element ĐANG ĐƯỢC HIỂN THỊ trên bảng để khóa nút "Add" trong Modal
 window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 
@@ -174,7 +173,9 @@ document.getElementById('btnAnalyze').onclick = async function () {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: inputVal })
         });
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
         if (data.error) throw new Error(data.error);
 
         tempTargetCode = data.targetCode;
@@ -267,7 +268,6 @@ function renderMatrix(niche, limit, targetCode) {
         if (!e4List.find(e => e.code === code)) e4List.push({code, spent: 0, isManual: true});
     });
 
-    // Lưu lại danh sách E2/E4 đang được render trên bảng để khóa tính năng Add trùng trong Modal
     window.CURRENT_RENDERED_E2 = e2List.map(e => String(e.code).padStart(2, '0'));
     window.CURRENT_RENDERED_E4 = e4List.map(e => String(e.code).padStart(2, '0'));
 
@@ -279,7 +279,7 @@ function renderMatrix(niche, limit, targetCode) {
             .matrix-scroll-area {
                 width: 100%;
                 overflow-x: auto;
-                padding: 15px 25px 25px 15px; /* Để margin tránh bị cắt mất nút hover */
+                padding: 15px 25px 25px 15px; 
                 box-sizing: border-box;
             }
             .canva-matrix-wrapper {
@@ -371,19 +371,14 @@ function renderMatrix(niche, limit, targetCode) {
     });
 
     html += `</tbody></table>`;
-    
-    // Nút [+] nằm ở mép ngoài
     html += `<div class="canva-add-btn e2-btn" title="Add E2 Column" onclick="window.openSearchModal('E2')">+</div>`;
     html += `<div class="canva-add-btn e4-btn" title="Add E4 Row" onclick="window.openSearchModal('E4')">+</div>`;
-    
     html += `</div></div>`;
 
     container.innerHTML = html;
-    
     injectSearchModal(); 
 }
 
-// TÌM KIẾM & NGĂN CHẶN CHỌN TRÙNG ELEMENT ĐÃ HIỂN THỊ
 let currentSearchType = 'E2';
 
 function injectSearchModal() {
@@ -442,7 +437,6 @@ window.handleElementSearch = function(query) {
         const detail = item.Detail || item.Hook || item['Insights to niches'] || item.CTA || item['Source/Video Type'] || 'N/A';
         const expl = item.Explanation || '';
         
-        // KIỂM TRA MÃ NÀY ĐÃ ĐƯỢC RENDER TRÊN BẢNG CHƯA (DÙ LÀ AI ĐỀ XUẤT HAY ADD TAY)
         const isAdded = (currentSearchType === 'E2' && window.CURRENT_RENDERED_E2.includes(code)) || 
                         (currentSearchType === 'E4' && window.CURRENT_RENDERED_E4.includes(code));
         
@@ -534,6 +528,26 @@ function forceRegenerateMixForTab(key) {
     renderReviewView();
 }
 
+function getSmartMix(niche, type, limit) {
+    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
+    
+    if (type === 'E1') pool = pool.filter(code => code !== '00' && code !== '01');
+    else if (type === 'E5') pool = pool.filter(code => code !== '00');
+
+    const history = RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
+    let map = {};
+    history.forEach(s => {
+        const code = type === 'E1' ? s.elements.substring(0, 2) : s.elements.substring(8, 10);
+        if (pool.includes(code)) map[code] = (map[code] || 0) + s.spent;
+    });
+    
+    const best = Object.keys(map).sort((a, b) => map[b] - map[a]);
+    const numBest = Math.ceil(limit * 0.6);
+    const selected = best.slice(0, numBest);
+    const rand = pool.filter(c => !selected.includes(c)).sort(() => 0.5 - Math.random()).slice(0, limit - selected.length);
+    return [...selected, ...rand];
+}
+
 function generateMixForTab(key) {
     const pair = SELECTED_PAIRS.get(key);
     let options = [];
@@ -544,7 +558,6 @@ function generateMixForTab(key) {
         const e1Opts = getSmartMix(CURRENT_NICHE, 'E1', 5);
         const e5Opts = getSmartMix(CURRENT_NICHE, 'E5', 5);
         for (let i = 0; i < 5; i++) {
-            // Thay đổi Default Fallback: Tránh rơi vào 01 (No Hook) và 00 (No CTA) khi hết data pool
             const e1 = e1Opts[i] || "02", e5 = e5Opts[i] || "01";
             options.push(`${e1}${pair.e2}03${pair.e4}${e5}`);
         }
@@ -566,32 +579,6 @@ function generateMixForTab(key) {
                  </tr>`;
     });
     document.getElementById(`mix-table-${key}`).innerHTML = html + `</tbody></table>`;
-}
-
-// BỘ LỌC CẢI TIẾN: LOẠI BỎ MÃ NO VIDEO (00), NO HOOK (01), NO CTA (00) RA KHỎI BỘ MIX TỰ ĐỘNG
-function getSmartMix(niche, type, limit) {
-    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
-    
-    // --- LỌC BỎ CÁC MÃ KHÔNG PHÙ HỢP ---
-    if (type === 'E1') {
-        pool = pool.filter(code => code !== '00' && code !== '01');
-    } else if (type === 'E5') {
-        pool = pool.filter(code => code !== '00');
-    }
-    // -----------------------------------
-
-    const history = RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
-    let map = {};
-    history.forEach(s => {
-        const code = type === 'E1' ? s.elements.substring(0, 2) : s.elements.substring(8, 10);
-        if (pool.includes(code)) map[code] = (map[code] || 0) + s.spent;
-    });
-    
-    const best = Object.keys(map).sort((a, b) => map[b] - map[a]);
-    const numBest = Math.ceil(limit * 0.6);
-    const selected = best.slice(0, numBest);
-    const rand = pool.filter(c => !selected.includes(c)).sort(() => 0.5 - Math.random()).slice(0, limit - selected.length);
-    return [...selected, ...rand];
 }
 
 function toggleFinalCode(fullCode, pairKey, checkbox) {
@@ -663,15 +650,33 @@ function renderReviewView() {
         grouped[pairKey].forEach(code => {
             const e1 = code.substring(0, 2), e2 = code.substring(2, 4), e3 = code.substring(4, 6), e4 = code.substring(6, 8), e5 = code.substring(8, 10);
 
-            const cacheData = AI_CACHE.get(code);
-            const hasCache = !!cacheData;
+            const cacheData = AI_CACHE.get(code) || {};
+            const hasCache = !!cacheData.rawScript;
             const scriptText = hasCache ? cacheData.scriptHtml : '';
             const isExpanded = hasCache ? cacheData.expanded : true;
+            
+            const showPromptBuilder = hasCache ? (cacheData.showPromptBuilder || false) : false;
+            const ugcRecipientVal = hasCache && cacheData.promptRecipient ? cacheData.promptRecipient : '';
+            const ugcCountryVal = hasCache && cacheData.promptCountry ? cacheData.promptCountry : 'America';
+            const ugcPromptResult = hasCache && cacheData.shootingPrompt ? cacheData.shootingPrompt : '';
+            const promptResultDisplay = ugcPromptResult ? 'block' : 'none';
 
             const aiRowStyle = hasCache && isExpanded ? 'table-row' : 'none';
             const btnText = hasCache ? '✨ Redo' : '✨ Create';
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
+
+            const builderHtml = hasCache ? `
+                <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
+                    <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Recipient details (e.g. 40yo Black man, casual)..." style="flex:2; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
+                        <input type="text" id="prompt-country-${code}" value="${ugcCountryVal}" placeholder="Country (Default: America)" style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
+                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px; white-space:nowrap;">Generate</button>
+                    </div>
+                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResult ? `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>${ugcPromptResult}` : ''}</div>
+                </div>
+            ` : '';
 
             tableHtml += `<tr>
                 <td><span class="full-code-text" data-full="${code}">${code}</span></td>
@@ -686,6 +691,7 @@ function renderReviewView() {
             <tr id="ai-row-${code}" style="display: ${aiRowStyle}; background:#f8fafc;">
                 <td colspan="7" style="padding: 15px; text-align: left; border-left: 3px solid #10a37f;">
                     <div id="ai-result-${code}" style="font-size: 14px; line-height: 1.6; color: #333;">${scriptText}</div>
+                    ${builderHtml}
                 </td>
             </tr>`;
         });
@@ -712,6 +718,83 @@ function toggleAI(code) {
         cacheData.expanded = false;
     }
     saveStateToCache(); 
+}
+
+window.togglePromptForm = function(fullCode) {
+    const builder = document.getElementById(`prompt-builder-${fullCode}`);
+    if (builder) {
+        const isHidden = builder.style.display === 'none';
+        builder.style.display = isHidden ? 'block' : 'none';
+        
+        const cacheData = AI_CACHE.get(fullCode) || {};
+        cacheData.showPromptBuilder = isHidden;
+        
+        const aiResultHtml = document.getElementById(`ai-result-${fullCode}`).innerHTML;
+        cacheData.scriptHtml = aiResultHtml; 
+
+        AI_CACHE.set(fullCode, cacheData);
+        saveStateToCache();
+    }
+}
+
+window.generateShootingPrompt = async function(fullCode) {
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
+
+    const recipientInput = document.getElementById(`prompt-recipient-${fullCode}`);
+    const countryInput = document.getElementById(`prompt-country-${fullCode}`);
+    const resultBox = document.getElementById(`prompt-result-${fullCode}`);
+    const btn = document.getElementById(`btn-gen-prompt-${fullCode}`);
+
+    const recipientDesc = recipientInput.value.trim();
+    const country = countryInput.value.trim() || 'America';
+
+    if (!recipientDesc) return alert("Please enter recipient details.");
+
+    recipientInput.setAttribute('value', recipientDesc);
+    countryInput.setAttribute('value', country);
+
+    btn.innerText = "⏳...";
+    btn.disabled = true;
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = `<i>⏳ Generating Shooting Prompt...</i>`;
+
+    try {
+        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-shooting-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                script: cacheData.rawScript,
+                recipientDesc: recipientDesc,
+                country: country
+            })
+        });
+
+        const rawText = await res.text();
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch(e) {
+            throw new Error("Server HTML Error: " + rawText.substring(0, 80));
+        }
+
+        if (data.error) throw new Error(data.error);
+
+        const copyBtn = `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
+        resultBox.innerHTML = copyBtn + data.prompt;
+
+        cacheData.promptRecipient = recipientDesc;
+        cacheData.promptCountry = country;
+        cacheData.shootingPrompt = data.prompt;
+        
+        AI_CACHE.set(fullCode, cacheData);
+        saveStateToCache();
+    } catch (err) {
+        resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
+    } finally {
+        btn.innerText = "Generate";
+        btn.disabled = false;
+    }
 }
 
 function adjustTooltip(e, tooltip) {
@@ -844,7 +927,9 @@ async function generateAIScript(fullCode, btn) {
             })
         });
 
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
         if (data.error) throw new Error(data.error);
 
         let badges = [];
@@ -856,6 +941,12 @@ async function generateAIScript(fullCode, btn) {
         const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" 
             style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">
             🖼️ Generate Scene Image
+        </button>`;
+
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" 
+            id="prompt-btn-${fullCode}"
+            style="background:#f59e0b;color:white;border:1px solid #d97706;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+            🎬 Prompt
         </button>`;
 
         const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" 
@@ -873,6 +964,7 @@ async function generateAIScript(fullCode, btn) {
             <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;gap:8px;flex-wrap:wrap;">
                 <div><strong>🤖 AI Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
                 <div style="display:flex;gap:8px;align-items:center;">
+                    ${promptBtnHtml}
                     ${copyBtnHtml}
                     ${saveBtnHtml}
                     ${imgBtnHtml}
@@ -884,6 +976,8 @@ async function generateAIScript(fullCode, btn) {
         resultBox.innerHTML = scriptHtml;
         AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
         saveStateToCache(); 
+        
+        renderReviewView();
 
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
@@ -920,7 +1014,9 @@ async function requestSceneImage(fullCode) {
             })
         });
 
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
         if (data.error) throw new Error(data.error);
 
         window.SCENE_GALLERY.push({

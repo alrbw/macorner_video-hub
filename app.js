@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V14 (Auto-Fallback, AI Image Generation, Gallery Tab)
+ * FULL AUTO V35 (Full-width Canva Matrix, Smart Block Existing Elements, Original Text)
  */
 
 let RAW_DATA = [];
@@ -10,17 +10,81 @@ let FINAL_SELECTED_CODES = new Map();
 let CSV_HEADERS = [];
 let PB_INDEX = -1;
 
-// Biến lưu trữ ngầm Data
-let CURRENT_INPUT_VAL = "";
 let GLOBAL_TARGET_CODE = "";
 let GLOBAL_PRODUCT_BASE = "";
 let GLOBAL_SCRAPED_DATA = "";
 let GLOBAL_IMAGE_URL = "";
 let CURRENT_NICHE = "";
-let AI_CACHE = new Map();
 
-// BỔ SUNG: Mảng lưu trữ ảnh của Gallery
-window.SCENE_GALLERY = [];
+let AI_CACHE = new Map();
+let MIX_OPTIONS_CACHE = new Map(); 
+
+let MANUAL_E2 = [];
+let MANUAL_E4 = [];
+let CURRENT_MATRIX_LIMIT = 5;
+
+// Mảng theo dõi các Element ĐANG ĐƯỢC HIỂN THỊ trên bảng để khóa nút "Add" trong Modal
+window.CURRENT_RENDERED_E2 = [];
+window.CURRENT_RENDERED_E4 = [];
+
+let GLOBAL_CACHE_KEY = ""; 
+
+try {
+    window.SCENE_GALLERY = JSON.parse(localStorage.getItem('macorner_gallery')) || [];
+} catch(e) { window.SCENE_GALLERY = []; }
+
+function saveGallery() {
+    localStorage.setItem('macorner_gallery', JSON.stringify(window.SCENE_GALLERY));
+}
+
+function saveStateToCache() {
+    if (!GLOBAL_CACHE_KEY) return;
+    const state = {
+        pairs: Array.from(SELECTED_PAIRS.entries()),
+        finals: Array.from(FINAL_SELECTED_CODES.entries()),
+        ai: Array.from(AI_CACHE.entries()),
+        mixes: Array.from(MIX_OPTIONS_CACHE.entries()),
+        pb: GLOBAL_PRODUCT_BASE,
+        sd: GLOBAL_SCRAPED_DATA,
+        img: GLOBAL_IMAGE_URL,
+        mE2: MANUAL_E2,
+        mE4: MANUAL_E4,
+        limit: CURRENT_MATRIX_LIMIT
+    };
+    localStorage.setItem(`macorner_state_${GLOBAL_CACHE_KEY}`, JSON.stringify(state));
+}
+
+function loadStateFromCache(key) {
+    const raw = localStorage.getItem(`macorner_state_${key}`);
+    SELECTED_PAIRS.clear();
+    FINAL_SELECTED_CODES.clear();
+    AI_CACHE.clear();
+    MIX_OPTIONS_CACHE.clear();
+    MANUAL_E2 = [];
+    MANUAL_E4 = [];
+
+    if (raw) {
+        try {
+            const state = JSON.parse(raw);
+            SELECTED_PAIRS = new Map(state.pairs || []);
+            FINAL_SELECTED_CODES = new Map(state.finals || []);
+            AI_CACHE = new Map(state.ai || []);
+            MIX_OPTIONS_CACHE = new Map(state.mixes || []);
+            
+            if (state.pb) GLOBAL_PRODUCT_BASE = state.pb;
+            if (state.sd) GLOBAL_SCRAPED_DATA = state.sd;
+            if (state.img) GLOBAL_IMAGE_URL = state.img;
+            if (state.mE2) MANUAL_E2 = state.mE2 || [];
+            if (state.mE4) MANUAL_E4 = state.mE4 || [];
+            if (state.limit) CURRENT_MATRIX_LIMIT = state.limit;
+            
+            return true;
+        } catch (e) {
+            console.error("Lỗi đọc Smart Cache:", e);
+        }
+    }
+    return false; 
+}
 
 function switchView(view) {
     document.querySelectorAll('.view-pane').forEach(v => v.classList.remove('active'));
@@ -29,7 +93,7 @@ function switchView(view) {
     document.getElementById(`nav-${view}`).classList.add('active');
 
     if (view === 'review') renderReviewView();
-    if (view === 'gallery') renderGalleryView(); // Gọi hàm render khi bấm tab
+    if (view === 'gallery') renderGalleryView(); 
 }
 
 function extractNiche(adName) {
@@ -80,74 +144,73 @@ document.getElementById('btnAnalyze').onclick = async function () {
     const inputVal = document.getElementById('targetVideoCode').value.trim();
     if (inputVal.length < 3) return alert("Please Enter Proper Link Or Code");
 
-    if (CURRENT_INPUT_VAL !== inputVal) {
-        SELECTED_PAIRS.clear(); FINAL_SELECTED_CODES.clear(); AI_CACHE.clear();
-
-        const mixArea = document.getElementById('mixArea');
-        if (mixArea) mixArea.style.display = 'none';
-
-        const reviewHeaders = document.getElementById('reviewTabHeaders');
-        const reviewContents = document.getElementById('reviewTabContents');
-        if (reviewHeaders) reviewHeaders.innerHTML = '';
-        if (reviewContents) reviewContents.innerHTML = '';
-
-        const noMsg = document.getElementById('no-selection-msg');
-        if (noMsg) noMsg.style.display = 'block';
-
-        const oldPb = document.getElementById('pb-container');
-        if (oldPb) oldPb.remove();
-
-        CURRENT_INPUT_VAL = inputVal;
-    }
-
     const btn = this;
     const analysisSec = document.getElementById('analysisSection');
 
-    GLOBAL_PRODUCT_BASE = ""; GLOBAL_SCRAPED_DATA = ""; GLOBAL_IMAGE_URL = "";
-    GLOBAL_TARGET_CODE = inputVal;
+    const mixArea = document.getElementById('mixArea');
+    if (mixArea) mixArea.style.display = 'none';
+    const reviewHeaders = document.getElementById('reviewTabHeaders');
+    const reviewContents = document.getElementById('reviewTabContents');
+    if (reviewHeaders) reviewHeaders.innerHTML = '';
+    if (reviewContents) reviewContents.innerHTML = '';
+    const noMsg = document.getElementById('no-selection-msg');
+    if (noMsg) noMsg.style.display = 'block';
+    const oldPb = document.getElementById('pb-container');
+    if (oldPb) oldPb.remove();
 
-    if (inputVal.startsWith('http')) {
-        analysisSec.style.display = 'none';
-        btn.innerText = "⏳ Loading The Product...";
-        btn.disabled = true;
+    let tempTargetCode = inputVal;
+    let tempProductBase = "";
+    let tempScrapedData = "";
+    let tempImageUrl = "";
+    let asin = "";
 
-        try {
-            const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/analyze-link', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: inputVal })
-            });
-            const data = await res.json();
+    analysisSec.style.display = 'none';
+    btn.innerText = "⏳ Loading The Product...";
+    btn.disabled = true;
 
-            if (data.error) throw new Error(data.error);
+    try {
+        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/analyze-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: inputVal })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
-            GLOBAL_TARGET_CODE = data.targetCode;
-            GLOBAL_PRODUCT_BASE = data.productBase;
-            GLOBAL_SCRAPED_DATA = data.scrapedData;
-            GLOBAL_IMAGE_URL = data.imageUrl || "";
+        tempTargetCode = data.targetCode;
+        tempProductBase = data.productBase;
+        tempScrapedData = data.scrapedData;
+        tempImageUrl = data.imageUrl || "";
+        asin = data.asin || "";
 
-            document.getElementById('targetVideoCode').value = GLOBAL_TARGET_CODE;
-        } catch (err) {
-            alert(`❌ Lỗi phân tích link: ${err.message}`);
-            btn.innerText = "Start Analysis";
-            btn.disabled = false;
-            return;
-        } finally {
-            btn.innerText = "Start Analysis";
-            btn.disabled = false;
-        }
-    } else {
-        const historyExact = RAW_DATA.filter(i => i.adName.toUpperCase().includes(GLOBAL_TARGET_CODE.toUpperCase()));
-        if (historyExact.length > 0 && historyExact.find(h => h.productBase)) {
-            GLOBAL_PRODUCT_BASE = historyExact.find(h => h.productBase).productBase;
-        }
+        document.getElementById('targetVideoCode').value = tempTargetCode;
+        
+    } catch (err) {
+        alert(`❌ Lỗi: ${err.message}`);
         const tcMatch = inputVal.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
-        if (tcMatch) GLOBAL_TARGET_CODE = tcMatch[1];
+        if (tcMatch) tempTargetCode = tcMatch[1].toUpperCase();
+    } finally {
+        btn.innerText = "Start Analysis";
+        btn.disabled = false;
     }
 
-    analysisSec.style.display = 'block';
+    GLOBAL_TARGET_CODE = tempTargetCode;
+    GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
+
     const history = RAW_DATA.filter(i => i.adName.includes(GLOBAL_TARGET_CODE) && i.elements);
     CURRENT_NICHE = history.length > 0 ? extractNiche(history[0].adName) : extractNiche(GLOBAL_TARGET_CODE);
+    
+    const hasCache = loadStateFromCache(GLOBAL_CACHE_KEY);
+    if (!hasCache) {
+        CURRENT_MATRIX_LIMIT = history.length > 0 ? 9 : 5;
+    }
+    
+    if (tempProductBase) GLOBAL_PRODUCT_BASE = tempProductBase;
+    if (tempScrapedData) GLOBAL_SCRAPED_DATA = tempScrapedData;
+    if (tempImageUrl) GLOBAL_IMAGE_URL = tempImageUrl;
+
+    analysisSec.style.display = 'block';
+    saveStateToCache();
 
     const hContainer = document.getElementById('historyContainer');
     if (history.length > 0) {
@@ -157,11 +220,14 @@ document.getElementById('btnAnalyze').onclick = async function () {
         hContainer.style.display = 'none';
     }
 
-    renderMatrix(CURRENT_NICHE, history.length > 0 ? 9 : 5, GLOBAL_TARGET_CODE);
+    renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
+    
+    if (SELECTED_PAIRS.size > 0) updateMixArea();
+    if (FINAL_SELECTED_CODES.size > 0) renderReviewView();
 };
 
 function getTopElements(niche, type, limit) {
-    let pool = ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0'));
+    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
     if (type === 'E4' && typeof NICHE_E4_MAP !== 'undefined') {
         const allowedE4s = NICHE_E4_MAP[niche.toUpperCase()];
         if (allowedE4s && allowedE4s.length > 0) pool = pool.filter(code => allowedE4s.includes(code));
@@ -189,54 +255,266 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
+// BẢNG E2/E4 FULL WIDTH VÀ NÚT [+] CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
+    
+    MANUAL_E2.forEach(code => {
+        if (!e2List.find(e => e.code === code)) e2List.push({code, spent: 0, isManual: true});
+    });
+    MANUAL_E4.forEach(code => {
+        if (!e4List.find(e => e.code === code)) e4List.push({code, spent: 0, isManual: true});
+    });
+
+    // Lưu lại danh sách E2/E4 đang được render trên bảng để khóa tính năng Add trùng trong Modal
+    window.CURRENT_RENDERED_E2 = e2List.map(e => String(e.code).padStart(2, '0'));
+    window.CURRENT_RENDERED_E4 = e4List.map(e => String(e.code).padStart(2, '0'));
+
     const container = document.getElementById('matrixContainer');
 
-    let html = `<table><thead><tr><th>E4 \\ E2</th>`;
-    e2List.forEach(e2 => { html += `<th><span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br><small>$${e2.spent.toLocaleString()}</small></th>`; });
+    if (!document.getElementById('canva-btn-style')) {
+        document.head.insertAdjacentHTML('beforeend', `
+        <style id="canva-btn-style">
+            .matrix-scroll-area {
+                width: 100%;
+                overflow-x: auto;
+                padding: 15px 25px 25px 15px; /* Để margin tránh bị cắt mất nút hover */
+                box-sizing: border-box;
+            }
+            .canva-matrix-wrapper {
+                position: relative;
+                display: inline-block;
+                min-width: 100%;
+            }
+            .canva-matrix-wrapper table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 0;
+            }
+            .canva-add-btn {
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                background: #ffffff;
+                border: 1.5px solid #cbd5e1;
+                color: #64748b;
+                font-size: 18px;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+                transition: all 0.2s ease;
+                position: absolute;
+                z-index: 10;
+                user-select: none;
+                padding-bottom: 2px;
+                box-sizing: border-box;
+            }
+            .canva-add-btn:hover {
+                background: #f8fafc;
+                color: #f97316;
+                border-color: #f97316;
+                transform: scale(1.15);
+            }
+            .canva-add-btn.e2-btn {
+                top: 50%;
+                right: 0px; 
+                transform: translate(50%, -50%);
+            }
+            .canva-add-btn.e2-btn:hover {
+                transform: translate(50%, -50%) scale(1.15);
+            }
+            .canva-add-btn.e4-btn {
+                bottom: 0px;
+                left: 50%;
+                transform: translate(-50%, 50%);
+            }
+            .canva-add-btn.e4-btn:hover {
+                transform: translate(-50%, 50%) scale(1.15);
+            }
+        </style>`);
+    }
+
+    let html = `
+    <div class="matrix-scroll-area">
+        <div class="canva-matrix-wrapper">
+            <table>
+            <thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
+
+    e2List.forEach((e2) => { 
+        html += `<th style="text-align: center;">
+                    <span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br>
+                    <small>${e2.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e2.spent.toLocaleString()}</small>
+                 </th>`; 
+    });
+    
     html += `</tr></thead><tbody>`;
 
-    e4List.forEach(e4 => {
-        html += `<tr><td><span class="code-box" data-type="E4" data-code="${e4.code}">${e4.code}</span><br><small>$${e4.spent.toLocaleString()}</small></td>`;
+    e4List.forEach((e4) => {
+        html += `<tr><td style="text-align: center;">
+                    <span class="code-box" data-type="E4" data-code="${e4.code}">${e4.code}</span><br>
+                    <small>${e4.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e4.spent.toLocaleString()}</small>
+                 </td>`;
         e2List.forEach(e2 => {
             const pairKey = `${e2.code}-${e4.code}`;
             const isRan = RAW_DATA.some(s => s.adName.toUpperCase().includes(targetCode.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
             const isChecked = SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
-            html += `<td class="${isRan ? 'cell-history' : ''}"><input type="checkbox" class="round-checkbox" ${isChecked} onchange="togglePair('${e2.code}', '${e4.code}', this)"></td>`;
+            
+            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;">
+                        <input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="togglePair('${e2.code}', '${e4.code}', this)">
+                     </td>`;
         });
         html += `</tr>`;
     });
-    container.innerHTML = html + `</tbody></table>`;
+
+    html += `</tbody></table>`;
+    
+    // Nút [+] nằm ở mép ngoài
+    html += `<div class="canva-add-btn e2-btn" title="Add E2 Column" onclick="window.openSearchModal('E2')">+</div>`;
+    html += `<div class="canva-add-btn e4-btn" title="Add E4 Row" onclick="window.openSearchModal('E4')">+</div>`;
+    
+    html += `</div></div>`;
+
+    container.innerHTML = html;
+    
+    injectSearchModal(); 
 }
+
+// TÌM KIẾM & NGĂN CHẶN CHỌN TRÙNG ELEMENT ĐÃ HIỂN THỊ
+let currentSearchType = 'E2';
+
+function injectSearchModal() {
+    if (document.getElementById('custom-element-modal')) return;
+    const modalHtml = `
+    <div id="custom-element-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px);">
+        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:550px; display:flex; flex-direction:column; position:relative; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <button onclick="window.closeSearchModal()" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:20px; cursor:pointer; color:#64748b;">✖</button>
+            <h3 id="custom-element-title" style="margin-top:0; color:#f97316; margin-bottom: 15px;">Add Custom Element</h3>
+            <input type="text" id="custom-element-search" placeholder="Type keyword to search..." style="width:100%; padding:10px 12px; margin-bottom:15px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px; font-size: 14px; outline: none; transition: border-color 0.2s;" autocomplete="off" oninput="window.handleElementSearch(this.value)">
+            <div id="custom-element-results" style="max-height:350px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:6px; background: #f8fafc;"></div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+window.openSearchModal = function(type) {
+    currentSearchType = type;
+    document.getElementById('custom-element-title').innerHTML = `🔍 Search & Add <b>${type}</b>`;
+    document.getElementById('custom-element-search').value = '';
+    document.getElementById('custom-element-results').innerHTML = '';
+    document.getElementById('custom-element-modal').style.display = 'flex';
+    document.getElementById('custom-element-search').focus();
+    window.handleElementSearch(''); 
+};
+
+window.closeSearchModal = function() {
+    document.getElementById('custom-element-modal').style.display = 'none';
+};
+
+window.handleElementSearch = function(query) {
+    query = query.toLowerCase().trim();
+    const resultsDiv = document.getElementById('custom-element-results');
+    const data = (typeof ELEMENTS_DATA !== 'undefined') ? ELEMENTS_DATA[currentSearchType] : [];
+    
+    if (!data || data.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#94a3b8;">Element data not found.</div>';
+        return;
+    }
+
+    const matched = data.filter(item => {
+        const code = String(item.Code).padStart(2, '0');
+        const detail = (item.Detail || item.Hook || item['Insights to niches'] || item.CTA || item['Source/Video Type'] || '').toLowerCase();
+        const explanation = (item.Explanation || '').toLowerCase();
+        return code.includes(query) || detail.includes(query) || explanation.includes(query);
+    });
+
+    if (matched.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-style:italic;">No results found.</div>';
+        return;
+    }
+
+    let html = '';
+    matched.forEach(item => {
+        const code = String(item.Code).padStart(2, '0');
+        const detail = item.Detail || item.Hook || item['Insights to niches'] || item.CTA || item['Source/Video Type'] || 'N/A';
+        const expl = item.Explanation || '';
+        
+        // KIỂM TRA MÃ NÀY ĐÃ ĐƯỢC RENDER TRÊN BẢNG CHƯA (DÙ LÀ AI ĐỀ XUẤT HAY ADD TAY)
+        const isAdded = (currentSearchType === 'E2' && window.CURRENT_RENDERED_E2.includes(code)) || 
+                        (currentSearchType === 'E4' && window.CURRENT_RENDERED_E4.includes(code));
+        
+        const btnHtml = isAdded 
+            ? `<button disabled style="padding:6px 10px; background:#e2e8f0; color:#94a3b8; border:none; border-radius:4px; font-size:12px; cursor:not-allowed; font-weight:bold;">Added</button>`
+            : `<button onclick="window.selectCustomElement('${code}')" style="padding:6px 12px; background:#10b981; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">+ Add</button>`;
+
+        html += `
+            <div style="padding:12px 15px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:white; transition:background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'">
+                <div style="flex:1; padding-right:15px;">
+                    <div style="margin-bottom:4px;">
+                        <strong style="color:#ea580c; background:#ffedd5; padding:2px 6px; border-radius:4px; margin-right:6px; font-size: 14px;">${code}</strong>
+                        <span style="font-weight:600; color:#1e293b; font-size: 14px;">${detail}</span>
+                    </div>
+                    ${expl ? `<div style="font-size:12px; color:#64748b; line-height:1.4;">${expl}</div>` : ''}
+                </div>
+                <div>${btnHtml}</div>
+            </div>
+        `;
+    });
+    resultsDiv.innerHTML = html;
+};
+
+window.selectCustomElement = function(code) {
+    if (currentSearchType === 'E2' && !MANUAL_E2.includes(code)) MANUAL_E2.push(code);
+    else if (currentSearchType === 'E4' && !MANUAL_E4.includes(code)) MANUAL_E4.push(code);
+    saveStateToCache(); 
+    window.closeSearchModal();
+    renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
+};
 
 function togglePair(e2, e4, checkbox) {
     const key = `${e2}-${e4}`;
-    if (checkbox.checked) { if (!SELECTED_PAIRS.has(key)) SELECTED_PAIRS.set(key, { e2, e4 }); }
-    else { SELECTED_PAIRS.delete(key); }
+    if (checkbox.checked) { 
+        if (!SELECTED_PAIRS.has(key)) SELECTED_PAIRS.set(key, { e2, e4 }); 
+    } else { 
+        SELECTED_PAIRS.delete(key); 
+        Array.from(FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
+            if (data.pairKey === key) FINAL_SELECTED_CODES.delete(code);
+        });
+    }
+    saveStateToCache(); 
     updateMixArea();
+    renderReviewView(); 
 }
 
 function updateMixArea() {
     const area = document.getElementById('mixArea');
     const headers = document.getElementById('tabHeaders');
     const contents = document.getElementById('tabContents');
-    if (SELECTED_PAIRS.size === 0) { area.style.display = 'none'; return; }
+    
+    if (SELECTED_PAIRS.size === 0) { 
+        area.style.display = 'none'; 
+        renderReviewView();
+        return; 
+    }
 
     area.style.display = 'block';
     const currentActive = document.querySelector('#tabHeaders .tab-btn.active')?.dataset.key;
 
     headers.innerHTML = '';
+    contents.innerHTML = ''; 
+
     SELECTED_PAIRS.forEach((val, key) => {
         headers.innerHTML += `<button class="tab-btn ${currentActive === key ? 'active' : ''}" data-key="${key}" onclick="switchTab('${key}', 'tabHeaders', 'tabContents')">Pair ${key}</button>`;
-        if (!document.getElementById(`pane-${key}`)) {
-            const pane = document.createElement('div');
-            pane.className = 'tab-pane'; pane.id = `pane-${key}`;
-            pane.innerHTML = `<button class="btn-primary" onclick="generateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container" id="mix-table-${key}"></div>`;
-            contents.appendChild(pane);
-        }
+        const pane = document.createElement('div');
+        pane.className = 'tab-pane'; pane.id = `pane-${key}`;
+        pane.innerHTML = `<button class="btn-primary" onclick="forceRegenerateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container" id="mix-table-${key}"></div>`;
+        contents.appendChild(pane);
+        generateMixForTab(key);
     });
+    
     const finalKey = currentActive && SELECTED_PAIRS.has(currentActive) ? currentActive : SELECTED_PAIRS.keys().next().value;
     switchTab(finalKey, 'tabHeaders', 'tabContents');
 }
@@ -246,23 +524,51 @@ function switchTab(key, headerId, contentId) {
     document.querySelectorAll(`#${contentId} .tab-pane`).forEach(p => p.classList.toggle('active', p.id.includes(key)));
 }
 
+function forceRegenerateMixForTab(key) {
+    MIX_OPTIONS_CACHE.delete(key);
+    Array.from(FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
+        if (data.pairKey === key) FINAL_SELECTED_CODES.delete(code);
+    });
+    generateMixForTab(key);
+    saveStateToCache();
+    renderReviewView();
+}
+
 function generateMixForTab(key) {
     const pair = SELECTED_PAIRS.get(key);
-    const e1Opts = getSmartMix(CURRENT_NICHE, 'E1', 5);
-    const e5Opts = getSmartMix(CURRENT_NICHE, 'E5', 5);
+    let options = [];
+
+    if (MIX_OPTIONS_CACHE.has(key)) {
+        options = MIX_OPTIONS_CACHE.get(key);
+    } else {
+        const e1Opts = getSmartMix(CURRENT_NICHE, 'E1', 5);
+        const e5Opts = getSmartMix(CURRENT_NICHE, 'E5', 5);
+        for (let i = 0; i < 5; i++) {
+            const e1 = e1Opts[i] || "01", e5 = e5Opts[i] || "01";
+            options.push(`${e1}${pair.e2}03${pair.e4}${e5}`);
+        }
+        MIX_OPTIONS_CACHE.set(key, options);
+        saveStateToCache();
+    }
 
     let html = `<table><thead><tr><th>Option</th><th>E1</th><th>E2</th><th>E3</th><th>E4</th><th>E5</th><th>Full Code</th><th>Select</th></tr></thead><tbody>`;
-    for (let i = 0; i < 5; i++) {
-        const e1 = e1Opts[i] || "01", e5 = e5Opts[i] || "01";
-        const full = `${e1}${pair.e2}03${pair.e4}${e5}`;
+    options.forEach((full, i) => {
+        const e1 = full.substring(0, 2), e5 = full.substring(8, 10);
         const isChecked = FINAL_SELECTED_CODES.has(full) ? 'checked' : '';
-        html += `<tr><td>#${i + 1}</td><td><span class="code-box" data-type="E1" data-code="${e1}">${e1}</span></td><td>${pair.e2}</td><td>03</td><td>${pair.e4}</td><td><span class="code-box" data-type="E5" data-code="${e5}">${e5}</span></td><td><span class="full-code-text" data-full="${full}">${full}</span></td><td><input type="checkbox" class="round-checkbox" ${isChecked} onchange="toggleFinalCode('${full}', '${key}', this)"></td></tr>`;
-    }
+        html += `<tr>
+                    <td>#${i + 1}</td>
+                    <td><span class="code-box" data-type="E1" data-code="${e1}">${e1}</span></td>
+                    <td>${pair.e2}</td><td>03</td><td>${pair.e4}</td>
+                    <td><span class="code-box" data-type="E5" data-code="${e5}">${e5}</span></td>
+                    <td><span class="full-code-text" data-full="${full}">${full}</span></td>
+                    <td><input type="checkbox" id="mix_cb_${GLOBAL_CACHE_KEY}_${full}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="toggleFinalCode('${full}', '${key}', this)"></td>
+                 </tr>`;
+    });
     document.getElementById(`mix-table-${key}`).innerHTML = html + `</tbody></table>`;
 }
 
 function getSmartMix(niche, type, limit) {
-    let pool = ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0'));
+    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
     if (type === 'E1') pool = pool.filter(code => code !== '00');
     const history = RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
     let map = {};
@@ -280,6 +586,8 @@ function getSmartMix(niche, type, limit) {
 function toggleFinalCode(fullCode, pairKey, checkbox) {
     if (checkbox.checked) FINAL_SELECTED_CODES.set(fullCode, { fullCode, pairKey });
     else FINAL_SELECTED_CODES.delete(fullCode);
+    saveStateToCache(); 
+    renderReviewView();
 }
 
 function renderReviewView() {
@@ -290,10 +598,14 @@ function renderReviewView() {
     const oldPb = document.getElementById('pb-container');
     if (oldPb) oldPb.remove();
 
+    if (!headers || !contents) return;
     headers.innerHTML = ''; contents.innerHTML = '';
 
-    if (FINAL_SELECTED_CODES.size === 0) { msg.style.display = 'block'; return; }
-    msg.style.display = 'none';
+    if (FINAL_SELECTED_CODES.size === 0) { 
+        if (msg) msg.style.display = 'block'; 
+        return; 
+    }
+    if (msg) msg.style.display = 'none';
 
     let displayProductName = GLOBAL_PRODUCT_BASE;
     if (!displayProductName && GLOBAL_TARGET_CODE) {
@@ -303,7 +615,7 @@ function renderReviewView() {
     if (!displayProductName) displayProductName = "Personalized Custom Gift";
 
     const linkBadgeHtml = GLOBAL_SCRAPED_DATA
-        ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;">✓ Scraped</span>`
+        ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;">✓ Data Connected</span>`
         : "";
 
     const imgPreviewHtml = GLOBAL_IMAGE_URL
@@ -316,7 +628,7 @@ function renderReviewView() {
     pbContainer.innerHTML = `
         ${imgPreviewHtml}
         <div style="display:flex; align-items:center; background: #fff3e0; padding: 8px 16px; border-radius: 8px; border: 1px solid #ffe0b2;">
-            <span style="font-weight: 600; color: #e65100; margin-right: 8px;">🎯 Target Product Base:</span>
+            <span style="font-weight: 600; color: #e65100; margin-right: 8px;">Target Product Base:</span>
             <span style="font-weight: 800; font-size: 1.1rem; color: #bf360c; text-transform: uppercase;">${displayProductName}</span>
         </div>
         ${linkBadgeHtml}
@@ -388,6 +700,7 @@ function toggleAI(code) {
         btn.innerText = '▶';
         cacheData.expanded = false;
     }
+    saveStateToCache(); 
 }
 
 function adjustTooltip(e, tooltip) {
@@ -402,7 +715,7 @@ document.addEventListener('mouseover', (e) => {
     const box = e.target.closest('.code-box');
     if (box && box.dataset.code) {
         const { type, code } = box.dataset;
-        const info = ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0'));
+        const info = typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0')) : null;
         if (info) {
             const tt = document.getElementById('tooltip');
             const name = info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || "N/A";
@@ -412,7 +725,7 @@ document.addEventListener('mouseover', (e) => {
     }
 
     const fullCodeElem = e.target.closest('.full-code-text');
-    if (fullCodeElem && fullCodeElem.dataset.full) {
+    if (fullCodeElem && fullCodeElem.dataset.full && typeof ELEMENTS_DATA !== 'undefined') {
         const full = fullCodeElem.dataset.full;
         const tt = document.getElementById('fullcode-tooltip');
         const parts = [
@@ -442,9 +755,41 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// ==========================================
-// GỌI AI VÀ TRUYỀN HÌNH ẢNH (VISION)
-// ==========================================
+window.copyScript = function(fullCode) {
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return;
+    
+    const cleanedScript = cacheData.rawScript
+        .split('\n')
+        .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
+        .join('\n');
+
+    navigator.clipboard.writeText(cleanedScript).then(() => {
+        const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
+        if (copyBtn) {
+            copyBtn.innerText = '✅ Copied!';
+            setTimeout(() => { copyBtn.innerText = '📋 Copy'; }, 2000);
+        }
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = cleanedScript;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    });
+};
+
+window.saveScript = function(fullCode) {
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return;
+    
+    const productBase = GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
+    if (typeof saveToStore === 'function') {
+        saveToStore(fullCode, productBase, cacheData.rawScript, GLOBAL_TARGET_CODE || fullCode);
+    }
+};
+
 async function generateAIScript(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
@@ -457,22 +802,25 @@ async function generateAIScript(fullCode, btn) {
     if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
     btn.disabled = true;
 
-    let processText = GLOBAL_IMAGE_URL
-        ? `<i>⏳ Loading...</i>`
-        : `<i>⏳</i>`;
+    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
     resultBox.innerHTML = processText;
 
     try {
         const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
-
         const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
-        const getEl = (type, code) => ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code);
-
+        
+        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
+        
         const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
         const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
 
-        const elementsContext = `E1: ${getName(iE1)} - ${iE1?.Explanation || ''}\nE2: ${getName(iE2)} - ${iE2?.Explanation || ''}\nE3: ${getName(iE3)} - ${iE3?.Explanation || ''}\nE4: ${getName(iE4)} - ${iE4?.Explanation || ''}\nE5: ${getName(iE5)} - ${iE5?.Explanation || ''}`;
-        const eData = { e1: getName(iE1), e2: getName(iE2), e3: getName(iE3), e4: getName(iE4), e5: getName(iE5) };
+        const eData = { 
+            e1: { name: getName(iE1), exp: iE1?.Explanation || '' },
+            e2: { name: getName(iE2), exp: iE2?.Explanation || '', group: iE2?.Group || '' },
+            e3: { name: getName(iE3), exp: iE3?.Explanation || '' },
+            e4: { name: getName(iE4), exp: iE4?.Explanation || '' }, 
+            e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
+        };
 
         const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-script', {
             method: 'POST',
@@ -481,7 +829,7 @@ async function generateAIScript(fullCode, btn) {
                 fullCode, niche: CURRENT_NICHE, productBase,
                 scrapedData: GLOBAL_SCRAPED_DATA,
                 imageUrl: GLOBAL_IMAGE_URL,
-                elementsContext, spentCodes, eData
+                spentCodes, eData
             })
         });
 
@@ -492,25 +840,20 @@ async function generateAIScript(fullCode, btn) {
         if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
 
         const badgesHtml = badges.join('');
-
-        // ── Helper: lấy plain text từ script để copy/save
         const rawScriptText = data.script;
 
-        // ── Nút Generate Scene Image
         const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" 
             style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">
             🖼️ Generate Scene Image
         </button>`;
 
-        // ── Nút Copy Script
-        const copyBtnHtml = `<button onclick="copyScript_${fullCode}()" 
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" 
             id="copy-btn-${fullCode}"
             style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">
             📋 Copy
         </button>`;
 
-        // ── Nút Save Script (.txt)
-        const saveBtnHtml = `<button onclick="saveScript_${fullCode}()" 
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" 
             style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">
             💾 Save
         </button>`;
@@ -528,52 +871,17 @@ async function generateAIScript(fullCode, btn) {
         `;
 
         resultBox.innerHTML = scriptHtml;
-
-        // ── Gắn logic Copy (dùng function toàn cục để onclick trong innerHTML gọi được)
-        window[`copyScript_${fullCode}`] = function () {
-            const cleanedScript = rawScriptText
-                .split('\n')
-                .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
-                .join('\n');
-
-            navigator.clipboard.writeText(cleanedScript).then(() => {
-                const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
-                if (copyBtn) {
-                    copyBtn.innerText = '✅ Copied!';
-                    setTimeout(() => { copyBtn.innerText = '📋 Copy'; }, 2000);
-                }
-            }).catch(() => {
-                const ta = document.createElement('textarea');
-                ta.value = cleanedScript;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            });
-        };
-
-        // ── Gắn logic Save (.txt)
-
-        window[`saveScript_${fullCode}`] = function () {
-            if (typeof saveToStore === 'function') {
-                saveToStore(fullCode, productBase, rawScriptText, GLOBAL_TARGET_CODE || fullCode);
-            }
-        };
-
         AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
+        saveStateToCache(); 
 
     } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message} <br>(Bạn nhớ chạy Node.js ngầm nhé)</span>`;
+        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
     } finally {
         btn.disabled = false;
         btn.innerText = "✨ Redo";
     }
 }
 
-
-// ==========================================
-// TÍNH NĂNG MỚI: YÊU CẦU API TẠO ẢNH SCENE
-// ==========================================
 async function requestSceneImage(fullCode) {
     const btn = document.getElementById(`img-btn-${fullCode}`);
     if (!btn) return;
@@ -604,14 +912,15 @@ async function requestSceneImage(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        // Lưu vào mảng SCENE_GALLERY toàn cầu
-        if (!window.SCENE_GALLERY) window.SCENE_GALLERY = [];
         window.SCENE_GALLERY.push({
             fullCode: fullCode,
             imageUrl: data.imageUrl,
             script: cacheData.rawScript,
             productBase: productBase
         });
+
+        saveGallery();
+        saveStateToCache();
 
         alert("✅ Image generated successfully! Check the 'Scene Gallery' tab.");
         btn.innerText = "✅ Saved to Gallery";
@@ -625,9 +934,6 @@ async function requestSceneImage(fullCode) {
     }
 }
 
-// ==========================================
-// RENDER TAB GALLERY (XEM ẢNH VÀ NỘI DUNG)
-// ==========================================
 function renderGalleryView() {
     const container = document.getElementById('gallery-container');
     if (!container) return;
@@ -638,11 +944,9 @@ function renderGalleryView() {
     }
 
     let html = '';
-    // Đảo ngược mảng để hiển thị ảnh vừa tạo lên đầu tiên
     const reversed = [...window.SCENE_GALLERY].reverse();
 
     reversed.forEach((data, index) => {
-        // Lấy đúng index theo mảng gốc để làm hàm hiển thị Modal
         const originalIndex = window.SCENE_GALLERY.length - 1 - index;
 
         html += `
@@ -664,7 +968,6 @@ function renderGalleryView() {
     container.innerHTML = html;
 }
 
-// Hiển thị Content Text trong Tab Gallery
 function showScriptModal(index) {
     const data = window.SCENE_GALLERY[index];
     if (!data) return;

@@ -201,11 +201,30 @@ app.post('/api/generate-script', async (req, res) => {
         const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
 
         // Lấy insight trực tiếp từ Data Frontend đóng gói
-        let insightName = eData?.e4?.name || '';
-        let buyer = "The Viewer", receiver = "The Gift Recipient";
-        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-        if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-        else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+        // Lấy insight trực tiếp từ E4
+let insightName = String(eData?.e4?.name || ''); 
+let buyer = "The Viewer", receiver = "The Gift Recipient";
+
+if (insightName) {
+    // Trường hợp 1: Có cấu trúc "To A From B" (Dành cho mã 01 - 57)
+    let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+    if (match) { 
+        receiver = match[1].trim(); 
+        buyer = match[2].trim(); 
+    } 
+    // Trường hợp 2: Chỉ có "To..." hoặc "For..." (Dành cho mã 72 - 78)
+    else { 
+        let fMatch = insightName.match(/(?:for|to)\s+(.*)/i); 
+        if (fMatch) { 
+            receiver = fMatch[1].trim(); 
+            buyer = `Someone buying for ${receiver}`; 
+        } else {
+            // Trường hợp 3: Các mã đặc biệt như "Self-Gift"
+            receiver = insightName;
+            buyer = "The Customer";
+        }
+    }
+}
 
         // Đọc các giá trị Explanation đã được Frontend đóng gói và gửi lên 
         let e1Exp = eData?.e1?.exp || '';

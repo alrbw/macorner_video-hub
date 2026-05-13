@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V35 (Full-width Canva Matrix, Smart Block Existing Elements, Original Text)
+ * FULL AUTO V36 (Filtered Smart Mix E1/E5, Full-width Canva Matrix)
  */
 
 let RAW_DATA = [];
@@ -544,7 +544,8 @@ function generateMixForTab(key) {
         const e1Opts = getSmartMix(CURRENT_NICHE, 'E1', 5);
         const e5Opts = getSmartMix(CURRENT_NICHE, 'E5', 5);
         for (let i = 0; i < 5; i++) {
-            const e1 = e1Opts[i] || "01", e5 = e5Opts[i] || "01";
+            // Thay đổi Default Fallback: Tránh rơi vào 01 (No Hook) và 00 (No CTA) khi hết data pool
+            const e1 = e1Opts[i] || "02", e5 = e5Opts[i] || "01";
             options.push(`${e1}${pair.e2}03${pair.e4}${e5}`);
         }
         MIX_OPTIONS_CACHE.set(key, options);
@@ -567,15 +568,25 @@ function generateMixForTab(key) {
     document.getElementById(`mix-table-${key}`).innerHTML = html + `</tbody></table>`;
 }
 
+// BỘ LỌC CẢI TIẾN: LOẠI BỎ MÃ NO VIDEO (00), NO HOOK (01), NO CTA (00) RA KHỎI BỘ MIX TỰ ĐỘNG
 function getSmartMix(niche, type, limit) {
     let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
-    if (type === 'E1') pool = pool.filter(code => code !== '00');
+    
+    // --- LỌC BỎ CÁC MÃ KHÔNG PHÙ HỢP ---
+    if (type === 'E1') {
+        pool = pool.filter(code => code !== '00' && code !== '01');
+    } else if (type === 'E5') {
+        pool = pool.filter(code => code !== '00');
+    }
+    // -----------------------------------
+
     const history = RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
     let map = {};
     history.forEach(s => {
         const code = type === 'E1' ? s.elements.substring(0, 2) : s.elements.substring(8, 10);
         if (pool.includes(code)) map[code] = (map[code] || 0) + s.spent;
     });
+    
     const best = Object.keys(map).sort((a, b) => map[b] - map[a]);
     const numBest = Math.ceil(limit * 0.6);
     const selected = best.slice(0, numBest);

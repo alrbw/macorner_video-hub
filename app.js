@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V43 (Anti HTML Crash, Smart Error Handling, Smart Mix)
+ * FULL AUTO V48 (Single Prompt Input, Merged Save, Cloud Store Sync)
  */
 
 let RAW_DATA = [];
@@ -27,6 +27,9 @@ window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
+
+// LINK SERVER KOYEB CỦA BẠN (Dùng chung cho toàn bộ API gọi từ Giao diện)
+const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 try {
     window.SCENE_GALLERY = JSON.parse(localStorage.getItem('macorner_gallery')) || [];
@@ -93,6 +96,7 @@ function switchView(view) {
 
     if (view === 'review') renderReviewView();
     if (view === 'gallery') renderGalleryView(); 
+    if (view === 'store' && typeof window.renderStore === 'function') window.renderStore(); // Tự động load Store từ Server
 }
 
 function extractNiche(adName) {
@@ -168,14 +172,12 @@ document.getElementById('btnAnalyze').onclick = async function () {
     btn.disabled = true;
 
     try {
-        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/analyze-link', {
+        const res = await fetch(`${API_BASE_URL}/api/analyze-link`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: inputVal })
         });
-        const rawText = await res.text();
-        let data;
-        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         tempTargetCode = data.targetCode;
@@ -256,7 +258,6 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
-// BẢNG E2/E4 FULL WIDTH VÀ NÚT [+] CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
@@ -276,104 +277,37 @@ function renderMatrix(niche, limit, targetCode) {
     if (!document.getElementById('canva-btn-style')) {
         document.head.insertAdjacentHTML('beforeend', `
         <style id="canva-btn-style">
-            .matrix-scroll-area {
-                width: 100%;
-                overflow-x: auto;
-                padding: 15px 25px 25px 15px; 
-                box-sizing: border-box;
-            }
-            .canva-matrix-wrapper {
-                position: relative;
-                display: inline-block;
-                min-width: 100%;
-            }
-            .canva-matrix-wrapper table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 0;
-            }
-            .canva-add-btn {
-                width: 26px;
-                height: 26px;
-                border-radius: 50%;
-                background: #ffffff;
-                border: 1.5px solid #cbd5e1;
-                color: #64748b;
-                font-size: 18px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-                transition: all 0.2s ease;
-                position: absolute;
-                z-index: 10;
-                user-select: none;
-                padding-bottom: 2px;
-                box-sizing: border-box;
-            }
-            .canva-add-btn:hover {
-                background: #f8fafc;
-                color: #f97316;
-                border-color: #f97316;
-                transform: scale(1.15);
-            }
-            .canva-add-btn.e2-btn {
-                top: 50%;
-                right: 0px; 
-                transform: translate(50%, -50%);
-            }
-            .canva-add-btn.e2-btn:hover {
-                transform: translate(50%, -50%) scale(1.15);
-            }
-            .canva-add-btn.e4-btn {
-                bottom: 0px;
-                left: 50%;
-                transform: translate(-50%, 50%);
-            }
-            .canva-add-btn.e4-btn:hover {
-                transform: translate(-50%, 50%) scale(1.15);
-            }
+            .matrix-scroll-area { width: 100%; overflow-x: auto; padding: 15px 25px 25px 15px; box-sizing: border-box; }
+            .canva-matrix-wrapper { position: relative; display: inline-block; min-width: 100%; }
+            .canva-matrix-wrapper table { width: 100%; border-collapse: collapse; margin: 0; }
+            .canva-add-btn { width: 26px; height: 26px; border-radius: 50%; background: #ffffff; border: 1.5px solid #cbd5e1; color: #64748b; font-size: 18px; font-weight: 500; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.15); transition: all 0.2s ease; position: absolute; z-index: 10; user-select: none; padding-bottom: 2px; box-sizing: border-box; }
+            .canva-add-btn:hover { background: #f8fafc; color: #f97316; border-color: #f97316; transform: scale(1.15); }
+            .canva-add-btn.e2-btn { top: 50%; right: 0px; transform: translate(50%, -50%); }
+            .canva-add-btn.e2-btn:hover { transform: translate(50%, -50%) scale(1.15); }
+            .canva-add-btn.e4-btn { bottom: 0px; left: 50%; transform: translate(-50%, 50%); }
+            .canva-add-btn.e4-btn:hover { transform: translate(-50%, 50%) scale(1.15); }
         </style>`);
     }
 
-    let html = `
-    <div class="matrix-scroll-area">
-        <div class="canva-matrix-wrapper">
-            <table>
-            <thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
-
+    let html = `<div class="matrix-scroll-area"><div class="canva-matrix-wrapper"><table><thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
     e2List.forEach((e2) => { 
-        html += `<th style="text-align: center;">
-                    <span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br>
-                    <small>${e2.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e2.spent.toLocaleString()}</small>
-                 </th>`; 
+        html += `<th style="text-align: center;"><span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br><small>${e2.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e2.spent.toLocaleString()}</small></th>`; 
     });
     
     html += `</tr></thead><tbody>`;
 
     e4List.forEach((e4) => {
-        html += `<tr><td style="text-align: center;">
-                    <span class="code-box" data-type="E4" data-code="${e4.code}">${e4.code}</span><br>
-                    <small>${e4.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e4.spent.toLocaleString()}</small>
-                 </td>`;
+        html += `<tr><td style="text-align: center;"><span class="code-box" data-type="E4" data-code="${e4.code}">${e4.code}</span><br><small>${e4.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e4.spent.toLocaleString()}</small></td>`;
         e2List.forEach(e2 => {
             const pairKey = `${e2.code}-${e4.code}`;
             const isRan = RAW_DATA.some(s => s.adName.toUpperCase().includes(targetCode.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
             const isChecked = SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
-            
-            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;">
-                        <input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="togglePair('${e2.code}', '${e4.code}', this)">
-                     </td>`;
+            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="togglePair('${e2.code}', '${e4.code}', this)"></td>`;
         });
         html += `</tr>`;
     });
 
-    html += `</tbody></table>`;
-    html += `<div class="canva-add-btn e2-btn" title="Add E2 Column" onclick="window.openSearchModal('E2')">+</div>`;
-    html += `<div class="canva-add-btn e4-btn" title="Add E4 Row" onclick="window.openSearchModal('E4')">+</div>`;
-    html += `</div></div>`;
+    html += `</tbody></table><div class="canva-add-btn e2-btn" title="Add E2 Column" onclick="window.openSearchModal('E2')">+</div><div class="canva-add-btn e4-btn" title="Add E4 Row" onclick="window.openSearchModal('E4')">+</div></div></div>`;
 
     container.innerHTML = html;
     injectSearchModal(); 
@@ -657,7 +591,6 @@ function renderReviewView() {
             
             const showPromptBuilder = hasCache ? (cacheData.showPromptBuilder || false) : false;
             const ugcRecipientVal = hasCache && cacheData.promptRecipient ? cacheData.promptRecipient : '';
-            const ugcCountryVal = hasCache && cacheData.promptCountry ? cacheData.promptCountry : 'America';
             const ugcPromptResult = hasCache && cacheData.shootingPrompt ? cacheData.shootingPrompt : '';
             const promptResultDisplay = ugcPromptResult ? 'block' : 'none';
 
@@ -670,8 +603,7 @@ function renderReviewView() {
                 <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
                     <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:10px; margin-bottom:10px;">
-                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Recipient details (e.g. 40yo Black man, casual)..." style="flex:2; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
-                        <input type="text" id="prompt-country-${code}" value="${ugcCountryVal}" placeholder="Country (Default: America)" style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
+                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px; white-space:nowrap;">Generate</button>
                     </div>
                     <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResult ? `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>${ugcPromptResult}` : ''}</div>
@@ -742,17 +674,14 @@ window.generateShootingPrompt = async function(fullCode) {
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
 
     const recipientInput = document.getElementById(`prompt-recipient-${fullCode}`);
-    const countryInput = document.getElementById(`prompt-country-${fullCode}`);
     const resultBox = document.getElementById(`prompt-result-${fullCode}`);
     const btn = document.getElementById(`btn-gen-prompt-${fullCode}`);
 
     const recipientDesc = recipientInput.value.trim();
-    const country = countryInput.value.trim() || 'America';
 
-    if (!recipientDesc) return alert("Please enter recipient details.");
+    if (!recipientDesc) return alert("Vui lòng điền thông tin nhân vật và đối tượng nhận quà.");
 
     recipientInput.setAttribute('value', recipientDesc);
-    countryInput.setAttribute('value', country);
 
     btn.innerText = "⏳...";
     btn.disabled = true;
@@ -760,31 +689,27 @@ window.generateShootingPrompt = async function(fullCode) {
     resultBox.innerHTML = `<i>⏳ Generating Shooting Prompt...</i>`;
 
     try {
-        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-shooting-prompt', {
+        const res = await fetch(`${API_BASE_URL}/api/generate-ugc-prompt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 script: cacheData.rawScript,
-                recipientDesc: recipientDesc,
-                country: country
+                recipientDesc: recipientDesc
             })
         });
 
-        const rawText = await res.text();
-        let data;
-        try {
-            data = JSON.parse(rawText);
-        } catch(e) {
-            throw new Error("Server HTML Error: " + rawText.substring(0, 80));
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Server returned error (${res.status}): ${errText.substring(0, 100)}`);
         }
 
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         const copyBtn = `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
         resultBox.innerHTML = copyBtn + data.prompt;
 
         cacheData.promptRecipient = recipientDesc;
-        cacheData.promptCountry = country;
         cacheData.shootingPrompt = data.prompt;
         
         AI_CACHE.set(fullCode, cacheData);
@@ -849,11 +774,17 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
+// GỘP CẢ HAI NỘI DUNG KHI COPY VÀ SAVE
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
     
-    const cleanedScript = cacheData.rawScript
+    let contentToCopy = cacheData.rawScript;
+    if (cacheData.shootingPrompt) {
+        contentToCopy += '\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n' + cacheData.shootingPrompt;
+    }
+    
+    const cleanedScript = contentToCopy
         .split('\n')
         .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
         .join('\n');
@@ -874,15 +805,154 @@ window.copyScript = function(fullCode) {
     });
 };
 
-window.saveScript = function(fullCode) {
+window.saveScript = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
     
     const productBase = GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
-    if (typeof saveToStore === 'function') {
-        saveToStore(fullCode, productBase, cacheData.rawScript, GLOBAL_TARGET_CODE || fullCode);
+    let finalContent = cacheData.rawScript;
+    
+    if (cacheData.shootingPrompt) {
+        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
+    }
+
+    const btn = document.getElementById(`save-btn-${fullCode}`);
+    if (btn) {
+        btn.innerText = "⏳ Saving...";
+        btn.disabled = true;
+    }
+
+    try {
+        const payload = {
+            code: fullCode,
+            productBase: productBase,
+            targetCode: GLOBAL_TARGET_CODE || fullCode,
+            content: finalContent
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Failed to save to server");
+        
+        if (btn) {
+            btn.innerText = "✅ Saved!";
+            setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
+        }
+        
+        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
+            window.renderStore();
+        }
+    } catch (e) {
+        console.error("Lỗi khi lưu script:", e);
+        alert("Có lỗi khi lưu kịch bản vào máy chủ trung tâm!");
+        if (btn) {
+            btn.innerText = "💾 Save";
+            btn.disabled = false;
+        }
     }
 };
+
+// ĐỒNG BỘ STORE TỪ CLOUD
+window.renderStore = async function() {
+    const listDiv = document.getElementById('store-list');
+    const emptyDiv = document.getElementById('store-empty');
+    const countDiv = document.getElementById('store-count');
+    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
+    const sortVal = document.getElementById('store-sort')?.value || "newest";
+
+    if(!listDiv) return;
+
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:20px;'>⏳ Đang tải dữ liệu từ máy chủ...</p>";
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/store`);
+        let store = await res.json();
+
+        if (store.length === 0) {
+            listDiv.innerHTML = '';
+            if(emptyDiv) emptyDiv.style.display = 'block';
+            if(countDiv) countDiv.innerText = '0 scripts saved';
+            return;
+        }
+
+        let filtered = store.filter(s => 
+            s.code.toLowerCase().includes(searchVal) || 
+            (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
+            (s.targetCode && s.targetCode.toLowerCase().includes(searchVal))
+        );
+
+        if (sortVal === 'oldest') {
+            filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+        } else if (sortVal === 'code') {
+            filtered.sort((a,b) => a.code.localeCompare(b.code));
+        } else {
+            filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+        }
+
+        if(countDiv) countDiv.innerText = `${filtered.length} scripts found globally`;
+
+        if (filtered.length === 0) {
+            listDiv.innerHTML = '';
+            if(emptyDiv) emptyDiv.style.display = 'block';
+            return;
+        }
+
+        if(emptyDiv) emptyDiv.style.display = 'none';
+
+        let html = '';
+        filtered.forEach(s => {
+            const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const dateStr = new Date(s.date).toLocaleString();
+            html += `
+                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:15px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                                <span style="font-size:16px; font-weight:700; color:#ea580c;">${s.code}</span>
+                                <span style="font-size:12px; background:#f1f5f9; padding:2px 8px; border-radius:12px; color:#64748b;">${dateStr}</span>
+                            </div>
+                            <div style="font-size:13px; color:#334155; font-weight:600; text-transform:uppercase;">Product: ${s.productBase}</div>
+                            ${s.targetCode && s.targetCode !== s.code ? `<div style="font-size:12px; color:#94a3b8; margin-top:2px;">Ref: ${s.targetCode}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#334155;">📋 Copy</button>
+                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;">🗑️ Delete</button>
+                        </div>
+                    </div>
+                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
+                </div>
+            `;
+        });
+        listDiv.innerHTML = html;
+
+    } catch (e) {
+        listDiv.innerHTML = `<span style="color:red">Lỗi tải dữ liệu: ${e.message}</span>`;
+    }
+}
+
+window.deleteScript = async function(id) {
+    if(!confirm("Xóa kịch bản này khỏi máy chủ chung?")) return;
+    try {
+        await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
+        window.renderStore();
+    } catch(e) {
+        alert("Lỗi khi xóa!");
+    }
+}
+
+window.clearStore = async function() {
+    if(!confirm("⚠️ CẢNH BÁO: Bạn có chắc muốn xóa TẤT CẢ kịch bản trên máy chủ không? Toàn bộ thiết bị đều sẽ bị mất dữ liệu!")) return;
+    try {
+        await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
+        window.renderStore();
+    } catch(e) {
+        alert("Lỗi khi xóa tất cả!");
+    }
+}
 
 async function generateAIScript(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
@@ -916,7 +986,7 @@ async function generateAIScript(fullCode, btn) {
             e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
         };
 
-        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-script', {
+        const res = await fetch(`${API_BASE_URL}/api/generate-script`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -927,9 +997,7 @@ async function generateAIScript(fullCode, btn) {
             })
         });
 
-        const rawText = await res.text();
-        let data;
-        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         let badges = [];
@@ -940,7 +1008,7 @@ async function generateAIScript(fullCode, btn) {
 
         const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" 
             style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">
-            🖼️ Generate Scene Image
+            🖼️ Scene Image
         </button>`;
 
         const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" 
@@ -956,13 +1024,14 @@ async function generateAIScript(fullCode, btn) {
         </button>`;
 
         const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" 
+            id="save-btn-${fullCode}"
             style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">
             💾 Save
         </button>`;
 
         const scriptHtml = `
             <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;gap:8px;flex-wrap:wrap;">
-                <div><strong>🤖 AI Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
+                <div><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
                 <div style="display:flex;gap:8px;align-items:center;">
                     ${promptBtnHtml}
                     ${copyBtnHtml}
@@ -1002,7 +1071,7 @@ async function requestSceneImage(fullCode) {
     btn.style.background = "#94a3b8";
 
     try {
-        const res = await fetch('https://only-breanne-dzt-b25e098f.koyeb.app/api/generate-scene-image', {
+        const res = await fetch(`${API_BASE_URL}/api/generate-scene-image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1014,9 +1083,7 @@ async function requestSceneImage(fullCode) {
             })
         });
 
-        const rawText = await res.text();
-        let data;
-        try { data = JSON.parse(rawText); } catch(e) { throw new Error("Server HTML Error: " + rawText.substring(0, 80)); }
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         window.SCENE_GALLERY.push({
@@ -1035,7 +1102,7 @@ async function requestSceneImage(fullCode) {
 
     } catch (err) {
         alert(`❌ Lỗi tạo ảnh: ${err.message}`);
-        btn.innerText = "🖼️ Generate Scene Image";
+        btn.innerText = "🖼️ Scene Image";
         btn.style.background = "#2563eb";
         btn.disabled = false;
     }

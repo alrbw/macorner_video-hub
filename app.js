@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V48 (Single Prompt Input, Merged Save, Cloud Store Sync)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter)
  */
 
 let RAW_DATA = [];
@@ -28,7 +28,7 @@ window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
 
-// LINK SERVER KOYEB CỦA BẠN (Dùng chung cho toàn bộ API gọi từ Giao diện)
+// LINK SERVER KOYEB CỦA BẠN
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 try {
@@ -96,7 +96,7 @@ function switchView(view) {
 
     if (view === 'review') renderReviewView();
     if (view === 'gallery') renderGalleryView(); 
-    if (view === 'store' && typeof window.renderStore === 'function') window.renderStore(); // Tự động load Store từ Server
+    if (view === 'store') window.renderStore(); // Tự động cập nhật Cloud Store
 }
 
 function extractNiche(adName) {
@@ -258,6 +258,7 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
+// BẢNG E2/E4 CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
@@ -599,6 +600,7 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
+            // GỘP Ô COUNTRY -> CHỈ CÒN 1 Ô NHẬP DUY NHẤT
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
                     <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
@@ -700,7 +702,7 @@ window.generateShootingPrompt = async function(fullCode) {
 
         if (!res.ok) {
             const errText = await res.text();
-            throw new Error(`Server returned error (${res.status}): ${errText.substring(0, 100)}`);
+            throw new Error(`Server error (${res.status}): ${errText.substring(0, 100)}`);
         }
 
         const data = await res.json();
@@ -774,7 +776,7 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// GỘP CẢ HAI NỘI DUNG KHI COPY VÀ SAVE
+// GỘP CẢ HAI NỘI DUNG KHI COPY
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -805,6 +807,180 @@ window.copyScript = function(fullCode) {
     });
 };
 
+
+// ==========================================
+// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CÓ FAVORITES
+// ==========================================
+window.STORE_DATA_CACHE = [];
+
+// TỰ ĐỘNG TẠO GIAO DIỆN STORE KHI BẤM TAB ĐỂ ĐÈ LÊN GIAO DIỆN CŨ
+window.buildStoreUI = function() {
+    const storePane = document.getElementById('view-store');
+    if (!storePane) return; 
+
+    let listContainer = document.getElementById('store-container-wrap');
+    if (!listContainer) {
+        storePane.innerHTML = `
+            <header class="top-nav">
+                <h2>Cloud Script Store</h2>
+                <button class="btn-danger" onclick="window.clearStore()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All</button>
+            </header>
+            <section class="card" id="store-container-wrap">
+                <div id="store-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+                    <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="code">By code A–Z</option>
+                    </select>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px; font-weight:bold; color:#d97706; background:#fef3c7; padding:6px 12px; border-radius:6px; border:1px solid #fde68a;">
+                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c;">
+                        ⭐ Favorites Only
+                    </label>
+                </div>
+                <div id="store-count" style="font-size:13px; color:#64748b; margin-bottom:12px;"></div>
+                <div id="store-list" style="min-height: 100px;"></div>
+                <div id="store-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none;">No scripts saved yet.</div>
+            </section>
+        `;
+    }
+};
+
+window.renderStore = async function() {
+    window.buildStoreUI();
+    const listDiv = document.getElementById('store-list');
+    if(!listDiv) return;
+
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
+    
+    try {
+        // THÊM THỜI GIAN ĐỂ CHỐNG LỖI CACHE BROWSER CŨ
+        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
+        let store = await res.json();
+        window.STORE_DATA_CACHE = store;
+        window.currentStoreFilter = 'all'; // Reset nhóm Sidebar
+        window.updateStoreUI();
+    } catch (e) {
+        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
+    }
+}
+
+window.updateStoreUI = function() {
+    const listDiv = document.getElementById('store-list');
+    const emptyDiv = document.getElementById('store-empty');
+    const countDiv = document.getElementById('store-count');
+    
+    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
+    const sortVal = document.getElementById('store-sort')?.value || "newest";
+    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
+
+    if(!listDiv) return;
+
+    let filtered = window.STORE_DATA_CACHE.filter(s => {
+        // Lọc Nhóm Sidebar
+        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
+        // Lọc Yêu thích
+        if (isFavOnly && !s.isFavorite) return false;
+        
+        // Lọc Tìm kiếm
+        return s.code.toLowerCase().includes(searchVal) || 
+               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
+               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
+    });
+
+    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
+    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) FOUND ON CLOUD`;
+
+    if (filtered.length === 0) {
+        listDiv.innerHTML = '';
+        if(emptyDiv) emptyDiv.style.display = 'block';
+        return;
+    }
+
+    if(emptyDiv) emptyDiv.style.display = 'none';
+
+    // Tạo nhóm cho Sidebar
+    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
+    window.STORE_DATA_CACHE.forEach(s => {
+        const tc = s.targetCode || 'OTHER';
+        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+    });
+
+    let sidebarHtml = `<div style="min-width: 140px; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; gap: 8px;">
+            <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+                ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
+            </div>`;
+
+    Object.keys(groupCounts).forEach(tc => {
+        if (tc === 'ALL') return;
+        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+        sidebarHtml += `
+            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #ffedd5; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            </div>
+        `;
+    });
+    sidebarHtml += `</div>`;
+
+    let cardsHtml = `<div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">`;
+    
+    filtered.forEach(s => {
+        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const dateStr = new Date(s.date).toLocaleString();
+        
+        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
+        const starFill = s.isFavorite ? '★' : '☆';
+        
+        cardsHtml += `
+            <div style="background:#fff; border:1px solid ${s.isFavorite ? '#fde68a' : '#e2e8f0'}; border-radius:8px; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;">
+                <div style="position:absolute; top:15px; left:15px;">
+                    <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:24px; color:${starColor}; padding:0; line-height:1; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${starFill}</button>
+                </div>
+                <div style="margin-left: 35px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                                <span style="font-size:16px; font-weight:800; color:#ea580c;">${s.code}</span>
+                                <span style="font-size:11px; background:#fff7ed; padding:3px 8px; border-radius:12px; color:#c2410c; border: 1px solid #ffedd5; font-weight: bold;">${s.productBase}</span>
+                            </div>
+                            <div style="font-size:12px; color:#94a3b8; font-weight:500;">
+                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#475569;">📋 Copy</button>
+                            <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#166534;">⬇ Download</button>
+                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;" title="Xóa khỏi Server">🗑️</button>
+                        </div>
+                    </div>
+                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
+                </div>
+            </div>
+        `;
+    });
+    cardsHtml += `</div>`;
+
+    listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
+}
+
+// Bật / Tắt Yêu Thích ngay lập tức
+window.toggleFavorite = async function(id) {
+    try {
+        const item = window.STORE_DATA_CACHE.find(s => s.id === id);
+        if(item) {
+            item.isFavorite = !item.isFavorite;
+            window.updateStoreUI(); // Mượt mắt ngay lập tức
+        }
+        await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
+    } catch(e) {
+        alert("Lỗi khi cập nhật Cloud!");
+    }
+}
+
+// LƯU KỊCH BẢN VÀ GỘP TEXT
 window.saveScript = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -836,124 +1012,53 @@ window.saveScript = async function(fullCode) {
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("Failed to save to server");
+        if (!res.ok) throw new Error("Failed to save");
         
         if (btn) {
             btn.innerText = "✅ Saved!";
             setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
         }
         
+        // Tự load lại Store nếu đang đứng ở tab Store
         if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
             window.renderStore();
         }
     } catch (e) {
-        console.error("Lỗi khi lưu script:", e);
-        alert("Có lỗi khi lưu kịch bản vào máy chủ trung tâm!");
-        if (btn) {
-            btn.innerText = "💾 Save";
-            btn.disabled = false;
-        }
+        console.error("Lỗi:", e);
+        alert("Có lỗi khi lưu lên Cloud. Vui lòng thử lại!");
+        if (btn) { btn.innerText = "💾 Save"; btn.disabled = false; }
     }
 };
 
-// ĐỒNG BỘ STORE TỪ CLOUD
-window.renderStore = async function() {
-    const listDiv = document.getElementById('store-list');
-    const emptyDiv = document.getElementById('store-empty');
-    const countDiv = document.getElementById('store-count');
-    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
-    const sortVal = document.getElementById('store-sort')?.value || "newest";
-
-    if(!listDiv) return;
-
-    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:20px;'>⏳ Đang tải dữ liệu từ máy chủ...</p>";
-    
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/store`);
-        let store = await res.json();
-
-        if (store.length === 0) {
-            listDiv.innerHTML = '';
-            if(emptyDiv) emptyDiv.style.display = 'block';
-            if(countDiv) countDiv.innerText = '0 scripts saved';
-            return;
-        }
-
-        let filtered = store.filter(s => 
-            s.code.toLowerCase().includes(searchVal) || 
-            (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
-            (s.targetCode && s.targetCode.toLowerCase().includes(searchVal))
-        );
-
-        if (sortVal === 'oldest') {
-            filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
-        } else if (sortVal === 'code') {
-            filtered.sort((a,b) => a.code.localeCompare(b.code));
-        } else {
-            filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
-        }
-
-        if(countDiv) countDiv.innerText = `${filtered.length} scripts found globally`;
-
-        if (filtered.length === 0) {
-            listDiv.innerHTML = '';
-            if(emptyDiv) emptyDiv.style.display = 'block';
-            return;
-        }
-
-        if(emptyDiv) emptyDiv.style.display = 'none';
-
-        let html = '';
-        filtered.forEach(s => {
-            const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const dateStr = new Date(s.date).toLocaleString();
-            html += `
-                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:15px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                        <div>
-                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                                <span style="font-size:16px; font-weight:700; color:#ea580c;">${s.code}</span>
-                                <span style="font-size:12px; background:#f1f5f9; padding:2px 8px; border-radius:12px; color:#64748b;">${dateStr}</span>
-                            </div>
-                            <div style="font-size:13px; color:#334155; font-weight:600; text-transform:uppercase;">Product: ${s.productBase}</div>
-                            ${s.targetCode && s.targetCode !== s.code ? `<div style="font-size:12px; color:#94a3b8; margin-top:2px;">Ref: ${s.targetCode}</div>` : ''}
-                        </div>
-                        <div style="display:flex; gap:8px;">
-                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#334155;">📋 Copy</button>
-                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;">🗑️ Delete</button>
-                        </div>
-                    </div>
-                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
-                </div>
-            `;
-        });
-        listDiv.innerHTML = html;
-
-    } catch (e) {
-        listDiv.innerHTML = `<span style="color:red">Lỗi tải dữ liệu: ${e.message}</span>`;
-    }
-}
-
 window.deleteScript = async function(id) {
-    if(!confirm("Xóa kịch bản này khỏi máy chủ chung?")) return;
+    if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;
     try {
+        window.STORE_DATA_CACHE = window.STORE_DATA_CACHE.filter(s => s.id !== id);
+        window.updateStoreUI();
         await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
-        window.renderStore();
-    } catch(e) {
-        alert("Lỗi khi xóa!");
-    }
+    } catch(e) { alert("Lỗi khi xóa!"); }
 }
 
 window.clearStore = async function() {
-    if(!confirm("⚠️ CẢNH BÁO: Bạn có chắc muốn xóa TẤT CẢ kịch bản trên máy chủ không? Toàn bộ thiết bị đều sẽ bị mất dữ liệu!")) return;
+    if(!confirm("⚠️ CẢNH BÁO: Xóa TẤT CẢ kịch bản? Dữ liệu toàn cầu sẽ biến mất!")) return;
     try {
+        window.STORE_DATA_CACHE = [];
+        window.updateStoreUI();
         await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
-        window.renderStore();
-    } catch(e) {
-        alert("Lỗi khi xóa tất cả!");
-    }
+    } catch(e) { alert("Lỗi khi xóa!"); }
 }
 
+window.downloadText = function(code, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${code}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+// CÁC HÀM GỌI AI NHƯ CŨ
 async function generateAIScript(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
@@ -1006,28 +1111,10 @@ async function generateAIScript(fullCode, btn) {
         const badgesHtml = badges.join('');
         const rawScriptText = data.script;
 
-        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" 
-            style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">
-            🖼️ Scene Image
-        </button>`;
-
-        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" 
-            id="prompt-btn-${fullCode}"
-            style="background:#f59e0b;color:white;border:1px solid #d97706;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 1px 2px rgba(0,0,0,.05);">
-            🎬 Prompt
-        </button>`;
-
-        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" 
-            id="copy-btn-${fullCode}"
-            style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">
-            📋 Copy
-        </button>`;
-
-        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" 
-            id="save-btn-${fullCode}"
-            style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">
-            💾 Save
-        </button>`;
+        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">🖼️ Scene Image</button>`;
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" style="background:#f59e0b;color:white;border:1px solid #d97706;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 1px 2px rgba(0,0,0,.05);">🎬 Prompt</button>`;
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">📋 Copy</button>`;
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">💾 Save</button>`;
 
         const scriptHtml = `
             <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;gap:8px;flex-wrap:wrap;">

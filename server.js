@@ -5,7 +5,9 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { OpenAI } = require('openai');
+const { GoogleGenAI } = require('@google/genai'); 
 
 function cleanAIScript(text) {
     if (!text) return "";
@@ -26,39 +28,47 @@ app.use(express.json({ limit: '50mb' }));
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ==========================================
-// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG
+// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG & FAVORITE
+// LƯU Ý: Lưu vào ổ /tmp/ để tương thích với Serverless Cloud như Koyeb
 // ==========================================
-const STORE_FILE = path.join(__dirname, 'scripts_store.json');
+const STORE_FILE = path.join(os.tmpdir(), 'scripts_store.json');
+let MEMORY_STORE = null;
 
 function readStore() {
+    if (MEMORY_STORE) return MEMORY_STORE;
     if (!fs.existsSync(STORE_FILE)) return [];
     try { 
-        return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
+        MEMORY_STORE = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
+        return MEMORY_STORE;
     } catch(e) { 
         return []; 
     }
 }
 
 function writeStore(data) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+    MEMORY_STORE = data;
+    try { fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8'); } catch(e) { console.error("Lỗi ghi đĩa:", e); }
 }
 
+// Lấy danh sách Store
 app.get('/api/store', (req, res) => {
     res.json(readStore());
 });
 
+// Lưu Script mới vào Store
 app.post('/api/store', (req, res) => {
     try {
         const store = readStore();
         const newScript = { 
-            id: Date.now().toString(), 
-            code: req.body.code || req.body.fullCode, // Hỗ trợ cả 2 tên biến
+            id: Date.now().toString() + Math.random().toString(36).substring(2,5), 
+            code: req.body.code || req.body.fullCode, 
             productBase: req.body.productBase || req.body.product,
             targetCode: req.body.targetCode,
             content: req.body.content,
+            isFavorite: false, // Mặc định chưa thả sao
             date: new Date().toISOString() 
         };
-        store.unshift(newScript); // Đẩy lên đầu danh sách
+        store.unshift(newScript); 
         writeStore(store);
         res.json({ success: true, item: newScript });
     } catch(e) {
@@ -66,6 +76,24 @@ app.post('/api/store', (req, res) => {
     }
 });
 
+// Bật tắt Favorite (Thả tim)
+app.patch('/api/store/:id/favorite', (req, res) => {
+    try {
+        let store = readStore();
+        const itemIndex = store.findIndex(s => s.id === req.params.id);
+        if (itemIndex > -1) {
+            store[itemIndex].isFavorite = !store[itemIndex].isFavorite; // Đảo trạng thái
+            writeStore(store);
+            res.json({ success: true, isFavorite: store[itemIndex].isFavorite });
+        } else {
+            res.status(404).json({ error: "Item not found" });
+        }
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi cập nhật sao: " + e.message });
+    }
+});
+
+// Xóa tất cả Store
 app.delete('/api/store', (req, res) => {
     try {
         writeStore([]);
@@ -75,6 +103,7 @@ app.delete('/api/store', (req, res) => {
     }
 });
 
+// Xóa 1 Script theo ID
 app.delete('/api/store/:id', (req, res) => {
     try {
         let store = readStore();
@@ -407,9 +436,6 @@ ${elementsContext}
     }
 });
 
-// =====================================================================
-// API TẠO PROMPT QUAY VIDEO (ĐÃ SỬA LỖI UNEXPECTED TOKEN)
-// =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
@@ -446,6 +472,83 @@ ${script}`;
     } catch (error) {
         console.error("API UGC Prompt Error:", error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/generate-scene-image', async (req, res) => {
+    req.setTimeout(120000);
+    res.setTimeout(120000);
+
+    try {
+        const { script, productBase, imageUrl } = req.body;
+        if (!imageUrl) throw new Error("Lỗi: Không tìm thấy ảnh gốc của sản phẩm để phân tích.");
+        if (!process.env.GEMINI_API_KEY) throw new Error("Lỗi: Server chưa được cấu hình GEMINI_API_KEY trong file .env");
+
+        console.log(`\n[GEMINI] Bắt đầu tải và phân tích ảnh gốc...`);
+        const base64ImageWithPrefix = await fetchImageAsBase64(imageUrl);
+        if (!base64ImageWithPrefix) throw new Error("Không thể tải được ảnh gốc từ URL cung cấp.");
+
+        const match = base64ImageWithPrefix.match(/^data:(image\/\w+);base64,(.*)$/);
+        if (!match) throw new Error("Định dạng ảnh tải về không hợp lệ.");
+        
+        const mimeType = match[1];
+        const base64Data = match[2];
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+        const visionPrompt = `Task: You are an expert prompt engineer. I will provide an image of a product. You must write a prompt for the Google Imagen 3 model to generate a highly realistic vertical 9:16 lifestyle photo.
+
+Context of the scene (from the video script): "${String(script || '').substring(0, 400)}"
+Product Type: ${productBase}.
+
+Follow these guidelines carefully:
+1. PRODUCT VISUALS & TEXT: Analyze the product image meticulously. Describe its physical shape, materials, and colors. Identify EVERY exact word, quote, name, font style, and graphic visible. Wrap all extracted text in double quotes so Imagen renders it perfectly (e.g., The lapel pin reads exactly "On your graduation day..."). Imagen 3 is extremely good at text rendering.
+2. SCENE & INTERACTION: Place the exact product logically into the new scene based on the context ("giữ nguyên hình dáng và design"). If it's apparel or wearable (like a lapel pin, jewelry), show a person wearing it naturally in an everyday setting. If it's decor, place it on a suitable surface. Treat any people in the scene as generic models.
+3. PHOTOGRAPHY STYLE: Shot on iPhone, candid, natural lighting, authentic, relatable UGC feel.
+4. Output ONLY the English prompt text, no extra conversational words, under 900 characters.`;
+
+        let imagePrompt = "";
+
+        try {
+            console.log(`\n[Gemini 1.5 Flash] Đang đọc thiết kế của ảnh...`);
+            const visionResponse = await ai.models.generateContent({
+                model: 'gemini-1.5-flash',
+                contents: [
+                    { role: 'user', parts: [ { text: visionPrompt }, { inlineData: { mimeType: mimeType, data: base64Data } } ] }
+                ]
+            });
+            imagePrompt = visionResponse.text.trim();
+        } catch (visionError) {
+            console.log(`\n⚠️ Lỗi hạn ngạch Gemini. Đang tự động Fallback chuyển sang OpenAI GPT-4o để đọc ảnh...`);
+            const promptRes = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: "You are an expert prompt engineer for Google Imagen 3." },
+                    { role: "user", content: [ { type: "text", text: visionPrompt }, { type: "image_url", image_url: { url: base64ImageWithPrefix, detail: "high" } } ] }
+                ],
+                temperature: 0.7
+            });
+            imagePrompt = promptRes.choices[0].message.content.trim();
+        }
+
+        console.log(`\n[Imagen 3] Đang gửi yêu cầu sinh ảnh...`);
+
+        const imageRes = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-001', 
+            prompt: imagePrompt,
+            config: { numberOfImages: 1, aspectRatio: '9:16', outputMimeType: 'image/jpeg' }
+        });
+
+        if (!imageRes.generatedImages || imageRes.generatedImages.length === 0) {
+            throw new Error("Gemini API (Imagen 3) không thể tạo ảnh do chính sách an toàn (Safety Filter).");
+        }
+
+        const generatedBase64 = imageRes.generatedImages[0].image.imageBytes;
+        res.json({ imageUrl: `data:image/jpeg;base64,${generatedBase64}` });
+
+    } catch (error) {
+        console.error("Gemini Generation Error:", error.message || error);
+        res.status(500).json({ error: error.message || "Đã xảy ra lỗi trong quá trình tạo ảnh bằng Google Gemini." });
     }
 });
 

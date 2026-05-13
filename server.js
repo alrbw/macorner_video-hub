@@ -181,6 +181,7 @@ app.post('/api/analyze-link', async (req, res) => {
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
+        const safeNiche = String(niche || '');
 
         const larkToken = await getLarkToken();
         const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
@@ -188,62 +189,53 @@ app.post('/api/generate-script', async (req, res) => {
         const records = recordsRes.data.data.items || [];
 
         let scoredNotes = [];
+        const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
+
         records.forEach(item => {
             const fields = item.fields;
             if (!fields || !fields['Note Edit']) return;
-            const code = fields['Code'] || fields['Video Code'] || '';
+            
+            const code = String(fields['Code'] || fields['Video Code'] || ''); 
             let score = 0;
-            if (code.toUpperCase().includes(niche.toUpperCase())) score += 100;
-            if (spentCodes && spentCodes.some(sc => code.toUpperCase().includes(sc.toUpperCase()))) score += 15;
+            
+            if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
+            if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
+            
             if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
         });
         scoredNotes.sort((a, b) => b.score - a.score);
         const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
 
-        // Lấy insight trực tiếp từ Data Frontend đóng gói
-        // Lấy insight trực tiếp từ E4
-let insightName = String(eData?.e4?.name || ''); 
-let buyer = "The Viewer", receiver = "The Gift Recipient";
+        // BÓC TÁCH AN TOÀN eData TỪ FRONTEND GỬI LÊN (KHÔNG CẦN TỚI ELEMENTS_DATA NỮA)
+        const getEDataName = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.name || '') : (eData?.[key] || '');
+        const getEDataExp = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.exp || '') : '';
+        const getEDataGroup = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.group || '') : '';
 
-if (insightName) {
-    // Trường hợp 1: Có cấu trúc "To A From B" (Dành cho mã 01 - 57)
-    let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-    if (match) { 
-        receiver = match[1].trim(); 
-        buyer = match[2].trim(); 
-    } 
-    // Trường hợp 2: Chỉ có "To..." hoặc "For..." (Dành cho mã 72 - 78)
-    else { 
-        let fMatch = insightName.match(/(?:for|to)\s+(.*)/i); 
-        if (fMatch) { 
-            receiver = fMatch[1].trim(); 
-            buyer = `Someone buying for ${receiver}`; 
-        } else {
-            // Trường hợp 3: Các mã đặc biệt như "Self-Gift"
-            receiver = insightName;
-            buyer = "The Customer";
-        }
-    }
-}
+        let e1Name = String(getEDataName('e1')); let e1Exp = String(getEDataExp('e1'));
+        let e2Name = String(getEDataName('e2')); let e2Exp = String(getEDataExp('e2')); let e2Group = String(getEDataGroup('e2'));
+        let e3Name = String(getEDataName('e3')); let e3Exp = String(getEDataExp('e3'));
+        let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
+        let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        // Đọc các giá trị Explanation đã được Frontend đóng gói và gửi lên 
-        let e1Exp = eData?.e1?.exp || '';
-        let e2Exp = eData?.e2?.exp || '';
-        let e2Group = eData?.e2?.group || '';
-        let e5Exp = eData?.e5?.exp || '';
+        // ÉP KIỂU STRING() BẢO VỆ LỖI MATCH()
+        let insightName = String(e4Name);
+        let buyer = "The Viewer", receiver = "The Gift Recipient";
+        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+        if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+        else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
 
-        // ĐỊNH HƯỚNG POV
         let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-        let e2Check = (e2Group + " " + (eData?.e2?.name || '')).toLowerCase();
+        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+        
         if (e2Check.includes("buyer")) {
             povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
         } else if (e2Check.includes("receiver")) {
             povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
         }
 
-        // ĐỊNH HƯỚNG TONE GIỌNG TỪ E1
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
-        let e1Lower = (eData?.e1?.name || '').toLowerCase();
+        let e1Lower = String(e1Name).toLowerCase();
+        
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
             toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
         } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
@@ -256,7 +248,7 @@ if (insightName) {
             toneInstruction = "Mysterious and intriguing. Build suspense from the hook all the way to the end.";
         }
 
-        const elementsContext = `E1: ${eData?.e1?.name} - ${e1Exp}\nE2: ${eData?.e2?.name} - ${e2Exp}\nE3: ${eData?.e3?.name} - ${eData?.e3?.exp}\nE4: ${eData?.e4?.name} - ${eData?.e4?.exp}\nE5: ${eData?.e5?.name} - ${e5Exp}`;
+        const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
         const textPrompt = `
 You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
@@ -277,15 +269,15 @@ To make this content authentic, you MUST strictly follow the assigned Point of V
 === SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
 You must structure the script based on the following requested elements. Execute them EXACTLY as described:
 
-1. HOOK (0:00-0:03): "${eData?.e1?.name || 'Start with an attention-grabber.'}"
+1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
    ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
    -> Rule: Execute this specific type of hook perfectly in the first sentence to grab attention in your assigned tone.
 
-2. BODY/STORYLINE: "${eData?.e2?.name || 'Highlight the product.'}"
+2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
    ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
    -> Rule: Showcase the product following this exact storyline angle and your strictly assigned POV. Ensure it connects logically with the Hook.
 
-3. CALL TO ACTION (CTA): "${eData?.e5?.name || 'Provide a natural conclusion.'}"
+3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
    ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
    -> Rule: End the script following this exact CTA intent. If it implies "No CTA" or "No specific action", end naturally without asking for anything. Ensure the CTA fits your assigned POV (e.g., a buyer doesn't say "link in bio", they say "you have to get this for them").
 
@@ -353,6 +345,7 @@ ${elementsContext}
 
         res.json({ script: scriptResult, hasImage: finalImageUsed });
     } catch (error) {
+        console.error("API Generate Script Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -380,7 +373,7 @@ app.post('/api/generate-scene-image', async (req, res) => {
 
         const visionPrompt = `Task: You are an expert prompt engineer. I will provide an image of a product. You must write a prompt for the Google Imagen 3 model to generate a highly realistic vertical 9:16 lifestyle photo.
 
-Context of the scene (from the video script): "${script.substring(0, 400)}"
+Context of the scene (from the video script): "${String(script || '').substring(0, 400)}"
 Product Type: ${productBase}.
 
 Follow these guidelines carefully:
@@ -439,7 +432,8 @@ app.get('/', (req, res) => {
     res.status(200).send('Server is running');
 });
 
-// 2. Cấu hình Port linh hoạt và lắng nghe địa chỉ 0.0.0.0const PORT = process.env.PORT || 8000;
+// 2. Cấu hình Port linh hoạt và lắng nghe địa chỉ 0.0.0.0
+const PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Master AI Server running on port ${PORT}`);
 });

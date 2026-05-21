@@ -1,6 +1,7 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter)
+ * FULL AUTO V61 (Edit UGC Prompt, Self-Gift Fix, Context Enhancement)
+ * Separated Version - Frontend Logic
  */
 
 let RAW_DATA = [];
@@ -27,9 +28,55 @@ window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
+window.STORE_DATA_CACHE = [];
 
-// LINK SERVER KOYEB CỦA BẠN
+// LINK SERVER KOYEB (Cập nhật link node.js của bạn)
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
+
+// ======================= HELPER FUNCTIONS ========================
+window.escapeHTML = function(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+window.toggleUgcEdit = function(fullCode) {
+    const textDiv = document.getElementById(`ugc-text-${fullCode}`);
+    const editArea = document.getElementById(`ugc-edit-${fullCode}`);
+    const editBtn = document.getElementById(`edit-ugc-btn-${fullCode}`);
+    
+    if (!textDiv || !editArea || !editBtn) return;
+
+    if (textDiv.style.display !== 'none') {
+        editArea.value = textDiv.innerText;
+        textDiv.style.display = 'none';
+        editArea.style.display = 'block';
+        editBtn.innerText = '💾 Save Edit';
+        editBtn.style.color = '#16a34a';
+        editBtn.style.borderColor = '#16a34a';
+        editBtn.style.background = '#dcfce7';
+    } else {
+        const newText = editArea.value;
+        textDiv.innerText = newText;
+        editArea.style.display = 'none';
+        textDiv.style.display = 'block';
+        editBtn.innerText = '✏️ Edit';
+        editBtn.style.color = '#3b82f6';
+        editBtn.style.borderColor = '#3b82f6';
+        editBtn.style.background = '#eff6ff';
+        
+        const cacheData = AI_CACHE.get(fullCode);
+        if (cacheData) {
+            cacheData.shootingPrompt = newText;
+            AI_CACHE.set(fullCode, cacheData);
+            saveStateToCache();
+        }
+    }
+};
 
 try {
     window.SCENE_GALLERY = JSON.parse(localStorage.getItem('macorner_gallery')) || [];
@@ -96,7 +143,7 @@ function switchView(view) {
 
     if (view === 'review') renderReviewView();
     if (view === 'gallery') renderGalleryView(); 
-    if (view === 'store') window.renderStore(); // Tự động cập nhật Cloud Store
+    if (view === 'store') window.renderStore();
 }
 
 function extractNiche(adName) {
@@ -104,135 +151,144 @@ function extractNiche(adName) {
     return match ? match[1] : adName.substring(0, 3).toUpperCase();
 }
 
-document.getElementById('csvFileInput').addEventListener('change', function (e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const rows = event.target.result.split('\n').filter(r => r.trim() !== "");
-        if (rows.length === 0) return;
+const csvInput = document.getElementById('csvFileInput');
+if (csvInput) {
+    csvInput.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const rows = event.target.result.split('\n').filter(r => r.trim() !== "");
+            if (rows.length === 0) return;
 
-        CSV_HEADERS = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
-        PB_INDEX = CSV_HEADERS.findIndex(h => h.includes('product base') || h.includes('product'));
+            CSV_HEADERS = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+            PB_INDEX = CSV_HEADERS.findIndex(h => h.includes('product base') || h.includes('product'));
 
-        RAW_DATA = rows.slice(1).map(line => {
-            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            if (cols.length < 3) return null;
+            RAW_DATA = rows.slice(1).map(line => {
+                const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                if (cols.length < 3) return null;
 
-            let cleanAdName = cols[0] ? cols[0].replace(/^"|"$/g, '').trim() : "";
-            let rawSpent = cols[2] ? cols[2].replace(/[^0-9.-]+/g, "") : "0";
-            let productBase = (PB_INDEX !== -1 && cols[PB_INDEX]) ? cols[PB_INDEX].replace(/^"|"$/g, '').trim() : "";
+                let cleanAdName = cols[0] ? cols[0].replace(/^"|"$/g, '').trim() : "";
+                let rawSpent = cols[2] ? cols[2].replace(/[^0-9.-]+/g, "") : "0";
+                let productBase = (PB_INDEX !== -1 && cols[PB_INDEX]) ? cols[PB_INDEX].replace(/^"|"$/g, '').trim() : "";
 
-            return {
-                adName: cleanAdName,
-                productBase: productBase,
-                spent: parseFloat(rawSpent) || 0,
-                elements: cleanAdName.match(/\d{10}/) ? cleanAdName.match(/\d{10}/)[0] : null
-            };
-        }).filter(i => i);
-        document.getElementById('fileStatus').textContent = "Loaded: " + RAW_DATA.length;
-    };
-    reader.readAsText(file);
-});
+                return {
+                    adName: cleanAdName,
+                    productBase: productBase,
+                    spent: parseFloat(rawSpent) || 0,
+                    elements: cleanAdName.match(/\d{10}/) ? cleanAdName.match(/\d{10}/)[0] : null
+                };
+            }).filter(i => i);
+            document.getElementById('fileStatus').textContent = "Loaded: " + RAW_DATA.length;
+        };
+        reader.readAsText(file);
+    });
+}
 
-document.getElementById('targetVideoCode').placeholder = "Paste Product Link Or Code";
-document.getElementById('targetVideoCode').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        document.getElementById('btnAnalyze').click();
-    }
-});
+const targetVideoInput = document.getElementById('targetVideoCode');
+if (targetVideoInput) {
+    targetVideoInput.placeholder = "Paste Product Link Or Code";
+    targetVideoInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('btnAnalyze').click();
+        }
+    });
+}
 
-document.getElementById('btnAnalyze').onclick = async function () {
-    const inputVal = document.getElementById('targetVideoCode').value.trim();
-    if (inputVal.length < 3) return alert("Please Enter Proper Link Or Code");
+const btnAnalyze = document.getElementById('btnAnalyze');
+if (btnAnalyze) {
+    btnAnalyze.onclick = async function () {
+        const inputVal = document.getElementById('targetVideoCode').value.trim();
+        if (inputVal.length < 3) return alert("Please Enter Proper Link Or Code");
 
-    const btn = this;
-    const analysisSec = document.getElementById('analysisSection');
+        const btn = this;
+        const analysisSec = document.getElementById('analysisSection');
 
-    const mixArea = document.getElementById('mixArea');
-    if (mixArea) mixArea.style.display = 'none';
-    const reviewHeaders = document.getElementById('reviewTabHeaders');
-    const reviewContents = document.getElementById('reviewTabContents');
-    if (reviewHeaders) reviewHeaders.innerHTML = '';
-    if (reviewContents) reviewContents.innerHTML = '';
-    const noMsg = document.getElementById('no-selection-msg');
-    if (noMsg) noMsg.style.display = 'block';
-    const oldPb = document.getElementById('pb-container');
-    if (oldPb) oldPb.remove();
+        const mixArea = document.getElementById('mixArea');
+        if (mixArea) mixArea.style.display = 'none';
+        const reviewHeaders = document.getElementById('reviewTabHeaders');
+        const reviewContents = document.getElementById('reviewTabContents');
+        if (reviewHeaders) reviewHeaders.innerHTML = '';
+        if (reviewContents) reviewContents.innerHTML = '';
+        const noMsg = document.getElementById('no-selection-msg');
+        if (noMsg) noMsg.style.display = 'block';
+        const oldPb = document.getElementById('pb-container');
+        if (oldPb) oldPb.remove();
 
-    let tempTargetCode = inputVal;
-    let tempProductBase = "";
-    let tempScrapedData = "";
-    let tempImageUrl = "";
-    let asin = "";
+        let tempTargetCode = inputVal;
+        let tempProductBase = "";
+        let tempScrapedData = "";
+        let tempImageUrl = "";
+        let asin = "";
 
-    analysisSec.style.display = 'none';
-    btn.innerText = "⏳ Loading The Product...";
-    btn.disabled = true;
+        analysisSec.style.display = 'none';
+        btn.innerText = "⏳ Loading The Product...";
+        btn.disabled = true;
 
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/analyze-link`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: inputVal })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/analyze-link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: inputVal })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-        tempTargetCode = data.targetCode;
-        tempProductBase = data.productBase;
-        tempScrapedData = data.scrapedData;
-        tempImageUrl = data.imageUrl || "";
-        asin = data.asin || "";
+            tempTargetCode = data.targetCode;
+            tempProductBase = data.productBase;
+            tempScrapedData = data.scrapedData;
+            tempImageUrl = data.imageUrl || "";
+            asin = data.asin || "";
 
-        document.getElementById('targetVideoCode').value = tempTargetCode;
+            document.getElementById('targetVideoCode').value = tempTargetCode;
+            
+        } catch (err) {
+            alert(`❌ Lỗi: ${err.message}`);
+            const tcMatch = inputVal.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
+            if (tcMatch) tempTargetCode = tcMatch[1].toUpperCase();
+        } finally {
+            btn.innerText = "Start Analysis";
+            btn.disabled = false;
+        }
+
+        GLOBAL_TARGET_CODE = tempTargetCode;
+        GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
+
+        const history = RAW_DATA.filter(i => i.adName.includes(GLOBAL_TARGET_CODE) && i.elements);
+        CURRENT_NICHE = history.length > 0 ? extractNiche(history[0].adName) : extractNiche(GLOBAL_TARGET_CODE);
         
-    } catch (err) {
-        alert(`❌ Lỗi: ${err.message}`);
-        const tcMatch = inputVal.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
-        if (tcMatch) tempTargetCode = tcMatch[1].toUpperCase();
-    } finally {
-        btn.innerText = "Start Analysis";
-        btn.disabled = false;
-    }
+        const hasCache = loadStateFromCache(GLOBAL_CACHE_KEY);
+        if (!hasCache) {
+            CURRENT_MATRIX_LIMIT = history.length > 0 ? 9 : 5;
+        }
+        
+        if (tempProductBase) GLOBAL_PRODUCT_BASE = tempProductBase;
+        if (tempScrapedData) GLOBAL_SCRAPED_DATA = tempScrapedData;
+        if (tempImageUrl) GLOBAL_IMAGE_URL = tempImageUrl;
 
-    GLOBAL_TARGET_CODE = tempTargetCode;
-    GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
+        analysisSec.style.display = 'block';
+        saveStateToCache();
 
-    const history = RAW_DATA.filter(i => i.adName.includes(GLOBAL_TARGET_CODE) && i.elements);
-    CURRENT_NICHE = history.length > 0 ? extractNiche(history[0].adName) : extractNiche(GLOBAL_TARGET_CODE);
-    
-    const hasCache = loadStateFromCache(GLOBAL_CACHE_KEY);
-    if (!hasCache) {
-        CURRENT_MATRIX_LIMIT = history.length > 0 ? 9 : 5;
-    }
-    
-    if (tempProductBase) GLOBAL_PRODUCT_BASE = tempProductBase;
-    if (tempScrapedData) GLOBAL_SCRAPED_DATA = tempScrapedData;
-    if (tempImageUrl) GLOBAL_IMAGE_URL = tempImageUrl;
+        const hContainer = document.getElementById('historyContainer');
+        if (history.length > 0) {
+            hContainer.style.display = 'block';
+            renderHistoryTable(history);
+        } else {
+            hContainer.style.display = 'none';
+        }
 
-    analysisSec.style.display = 'block';
-    saveStateToCache();
-
-    const hContainer = document.getElementById('historyContainer');
-    if (history.length > 0) {
-        hContainer.style.display = 'block';
-        renderHistoryTable(history);
-    } else {
-        hContainer.style.display = 'none';
-    }
-
-    renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
-    
-    if (SELECTED_PAIRS.size > 0) updateMixArea();
-    if (FINAL_SELECTED_CODES.size > 0) renderReviewView();
-};
+        renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
+        
+        if (SELECTED_PAIRS.size > 0) updateMixArea();
+        if (FINAL_SELECTED_CODES.size > 0) renderReviewView();
+    };
+}
 
 function getTopElements(niche, type, limit) {
-    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
-    if (type === 'E4' && typeof NICHE_E4_MAP !== 'undefined') {
-        const allowedE4s = NICHE_E4_MAP[niche.toUpperCase()];
+    let pool = window.ELEMENTS_DATA && window.ELEMENTS_DATA[type] ? window.ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
+    if (type === 'E4' && window.NICHE_E4_MAP) {
+        const allowedE4s = window.NICHE_E4_MAP[niche.toUpperCase()];
         if (allowedE4s && allowedE4s.length > 0) pool = pool.filter(code => allowedE4s.includes(code));
         else pool.sort(() => 0.5 - Math.random());
     }
@@ -303,7 +359,7 @@ function renderMatrix(niche, limit, targetCode) {
             const pairKey = `${e2.code}-${e4.code}`;
             const isRan = RAW_DATA.some(s => s.adName.toUpperCase().includes(targetCode.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
             const isChecked = SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
-            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="togglePair('${e2.code}', '${e4.code}', this)"></td>`;
+            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.togglePair('${e2.code}', '${e4.code}', this)"></td>`;
         });
         html += `</tr>`;
     });
@@ -347,7 +403,7 @@ window.closeSearchModal = function() {
 window.handleElementSearch = function(query) {
     query = query.toLowerCase().trim();
     const resultsDiv = document.getElementById('custom-element-results');
-    const data = (typeof ELEMENTS_DATA !== 'undefined') ? ELEMENTS_DATA[currentSearchType] : [];
+    const data = window.ELEMENTS_DATA ? window.ELEMENTS_DATA[currentSearchType] : [];
     
     if (!data || data.length === 0) {
         resultsDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#94a3b8;">Element data not found.</div>';
@@ -403,7 +459,7 @@ window.selectCustomElement = function(code) {
     renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
 };
 
-function togglePair(e2, e4, checkbox) {
+window.togglePair = function(e2, e4, checkbox) {
     const key = `${e2}-${e4}`;
     if (checkbox.checked) { 
         if (!SELECTED_PAIRS.has(key)) SELECTED_PAIRS.set(key, { e2, e4 }); 
@@ -436,24 +492,24 @@ function updateMixArea() {
     contents.innerHTML = ''; 
 
     SELECTED_PAIRS.forEach((val, key) => {
-        headers.innerHTML += `<button class="tab-btn ${currentActive === key ? 'active' : ''}" data-key="${key}" onclick="switchTab('${key}', 'tabHeaders', 'tabContents')">Pair ${key}</button>`;
+        headers.innerHTML += `<button class="tab-btn ${currentActive === key ? 'active' : ''}" data-key="${key}" onclick="window.switchTab('${key}', 'tabHeaders', 'tabContents')">Pair ${key}</button>`;
         const pane = document.createElement('div');
         pane.className = 'tab-pane'; pane.id = `pane-${key}`;
-        pane.innerHTML = `<button class="btn-primary" onclick="forceRegenerateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container" id="mix-table-${key}"></div>`;
+        pane.innerHTML = `<button class="btn-primary" onclick="window.forceRegenerateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container" id="mix-table-${key}"></div>`;
         contents.appendChild(pane);
         generateMixForTab(key);
     });
     
     const finalKey = currentActive && SELECTED_PAIRS.has(currentActive) ? currentActive : SELECTED_PAIRS.keys().next().value;
-    switchTab(finalKey, 'tabHeaders', 'tabContents');
+    window.switchTab(finalKey, 'tabHeaders', 'tabContents');
 }
 
-function switchTab(key, headerId, contentId) {
+window.switchTab = function(key, headerId, contentId) {
     document.querySelectorAll(`#${headerId} .tab-btn`).forEach(b => b.classList.toggle('active', b.dataset.key === key));
     document.querySelectorAll(`#${contentId} .tab-pane`).forEach(p => p.classList.toggle('active', p.id.includes(key)));
 }
 
-function forceRegenerateMixForTab(key) {
+window.forceRegenerateMixForTab = function(key) {
     MIX_OPTIONS_CACHE.delete(key);
     Array.from(FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
         if (data.pairKey === key) FINAL_SELECTED_CODES.delete(code);
@@ -464,7 +520,7 @@ function forceRegenerateMixForTab(key) {
 }
 
 function getSmartMix(niche, type, limit) {
-    let pool = typeof ELEMENTS_DATA !== 'undefined' && ELEMENTS_DATA[type] ? ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
+    let pool = window.ELEMENTS_DATA && window.ELEMENTS_DATA[type] ? window.ELEMENTS_DATA[type].map(i => i.Code.toString().padStart(2, '0')) : [];
     
     if (type === 'E1') pool = pool.filter(code => code !== '00' && code !== '01');
     else if (type === 'E5') pool = pool.filter(code => code !== '00');
@@ -510,13 +566,13 @@ function generateMixForTab(key) {
                     <td>${pair.e2}</td><td>03</td><td>${pair.e4}</td>
                     <td><span class="code-box" data-type="E5" data-code="${e5}">${e5}</span></td>
                     <td><span class="full-code-text" data-full="${full}">${full}</span></td>
-                    <td><input type="checkbox" id="mix_cb_${GLOBAL_CACHE_KEY}_${full}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="toggleFinalCode('${full}', '${key}', this)"></td>
+                    <td><input type="checkbox" id="mix_cb_${GLOBAL_CACHE_KEY}_${full}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.toggleFinalCode('${full}', '${key}', this)"></td>
                  </tr>`;
     });
     document.getElementById(`mix-table-${key}`).innerHTML = html + `</tbody></table>`;
 }
 
-function toggleFinalCode(fullCode, pairKey, checkbox) {
+window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     if (checkbox.checked) FINAL_SELECTED_CODES.set(fullCode, { fullCode, pairKey });
     else FINAL_SELECTED_CODES.delete(fullCode);
     saveStateToCache(); 
@@ -575,7 +631,7 @@ function renderReviewView() {
     });
 
     Object.keys(grouped).forEach((pairKey, idx) => {
-        headers.innerHTML += `<button class="tab-btn ${idx === 0 ? 'active' : ''}" data-key="${pairKey}" onclick="switchTab('${pairKey}', 'reviewTabHeaders', 'reviewTabContents')">Pair ${pairKey}</button>`;
+        headers.innerHTML += `<button class="tab-btn ${idx === 0 ? 'active' : ''}" data-key="${pairKey}" onclick="window.switchTab('${pairKey}', 'reviewTabHeaders', 'reviewTabContents')">Pair ${pairKey}</button>`;
         const pane = document.createElement('div');
         pane.className = `tab-pane ${idx === 0 ? 'active' : ''}`;
         pane.id = `review-pane-${pairKey}`;
@@ -600,15 +656,23 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
-            // GỘP Ô COUNTRY -> CHỈ CÒN 1 Ô NHẬP DUY NHẤT
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
                     <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:10px; margin-bottom:10px;">
-                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
+                        <input type="text" id="prompt-recipient-${code}" value="${window.escapeHTML(ugcRecipientVal)}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px; white-space:nowrap;">Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResult ? `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>${ugcPromptResult}` : ''}</div>
+                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">
+                        ${ugcPromptResult ? `
+                            <div style="margin-bottom: 30px;">
+                                <button id="copy-ugc-btn-${code}" onclick="navigator.clipboard.writeText(document.getElementById('ugc-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>
+                                <button id="edit-ugc-btn-${code}" onclick="window.toggleUgcEdit('${code}')" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; cursor: pointer; background: #eff6ff; font-weight: bold; color: #3b82f6;">✏️ Edit</button>
+                            </div>
+                            <div id="ugc-text-${code}" style="white-space: pre-wrap; margin-top: 10px;">${window.escapeHTML(ugcPromptResult)}</div>
+                            <textarea id="ugc-edit-${code}" style="display: none; width: 100%; height: 200px; margin-top: 10px; padding: 10px; border: 1px solid #3b82f6; border-radius: 4px; font-family: inherit; font-size: 14px; box-sizing: border-box; resize: vertical;"></textarea>
+                        ` : ''}
+                    </div>
                 </div>
             ` : '';
 
@@ -618,8 +682,8 @@ function renderReviewView() {
                 <td>${e2}</td><td>${e3}</td><td>${e4}</td>
                 <td><span class="code-box" data-type="E5" data-code="${e5}">${e5}</span></td>
                 <td style="white-space: nowrap;">
-                    <button class="btn-primary" onclick="generateAIScript('${code}', this)" style="padding: 6px 12px; font-size: 0.8rem; background: #10a37f; border: none; cursor: pointer;">${btnText}</button>
-                    <button id="toggle-btn-${code}" onclick="toggleAI('${code}')" style="display: ${toggleDisplay}; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 5px 8px; cursor: pointer; margin-left: 5px; font-size: 0.8rem;">${toggleIcon}</button>
+                    <button class="btn-primary" onclick="window.generateAIScript('${code}', this)" style="padding: 6px 12px; font-size: 0.8rem; background: #10a37f; border: none; cursor: pointer;">${btnText}</button>
+                    <button id="toggle-btn-${code}" onclick="window.toggleAI('${code}')" style="display: ${toggleDisplay}; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 5px 8px; cursor: pointer; margin-left: 5px; font-size: 0.8rem;">${toggleIcon}</button>
                 </td>
             </tr>
             <tr id="ai-row-${code}" style="display: ${aiRowStyle}; background:#f8fafc;">
@@ -634,7 +698,7 @@ function renderReviewView() {
     });
 }
 
-function toggleAI(code) {
+window.toggleAI = function(code) {
     const row = document.getElementById(`ai-row-${code}`);
     const btn = document.getElementById(`toggle-btn-${code}`);
     if (!row) return;
@@ -663,9 +727,6 @@ window.togglePromptForm = function(fullCode) {
         const cacheData = AI_CACHE.get(fullCode) || {};
         cacheData.showPromptBuilder = isHidden;
         
-        const aiResultHtml = document.getElementById(`ai-result-${fullCode}`).innerHTML;
-        cacheData.scriptHtml = aiResultHtml; 
-
         AI_CACHE.set(fullCode, cacheData);
         saveStateToCache();
     }
@@ -688,6 +749,12 @@ window.generateShootingPrompt = async function(fullCode) {
     btn.innerText = "⏳...";
     btn.disabled = true;
     resultBox.style.display = 'block';
+
+    const editArea = document.getElementById(`ugc-edit-${fullCode}`);
+    if (editArea && editArea.style.display !== 'none') {
+        window.toggleUgcEdit(fullCode);
+    }
+
     resultBox.innerHTML = `<i>⏳ Generating Shooting Prompt...</i>`;
 
     try {
@@ -708,8 +775,14 @@ window.generateShootingPrompt = async function(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const copyBtn = `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
-        resultBox.innerHTML = copyBtn + data.prompt;
+        resultBox.innerHTML = `
+            <div style="margin-bottom: 30px;">
+                <button id="copy-ugc-btn-${fullCode}" onclick="navigator.clipboard.writeText(document.getElementById('ugc-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>
+                <button id="edit-ugc-btn-${fullCode}" onclick="window.toggleUgcEdit('${fullCode}')" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; cursor: pointer; background: #eff6ff; font-weight: bold; color: #3b82f6;">✏️ Edit</button>
+            </div>
+            <div id="ugc-text-${fullCode}" style="white-space: pre-wrap; margin-top: 10px;">${window.escapeHTML(data.prompt)}</div>
+            <textarea id="ugc-edit-${fullCode}" style="display: none; width: 100%; height: 200px; margin-top: 10px; padding: 10px; border: 1px solid #3b82f6; border-radius: 4px; font-family: inherit; font-size: 14px; box-sizing: border-box; resize: vertical;"></textarea>
+        `;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -736,7 +809,7 @@ document.addEventListener('mouseover', (e) => {
     const box = e.target.closest('.code-box');
     if (box && box.dataset.code) {
         const { type, code } = box.dataset;
-        const info = typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0')) : null;
+        const info = window.ELEMENTS_DATA ? window.ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0')) : null;
         if (info) {
             const tt = document.getElementById('tooltip');
             const name = info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || "N/A";
@@ -746,7 +819,7 @@ document.addEventListener('mouseover', (e) => {
     }
 
     const fullCodeElem = e.target.closest('.full-code-text');
-    if (fullCodeElem && fullCodeElem.dataset.full && typeof ELEMENTS_DATA !== 'undefined') {
+    if (fullCodeElem && fullCodeElem.dataset.full && window.ELEMENTS_DATA) {
         const full = fullCodeElem.dataset.full;
         const tt = document.getElementById('fullcode-tooltip');
         const parts = [
@@ -756,7 +829,7 @@ document.addEventListener('mouseover', (e) => {
         ];
         let html = `<b style="margin-bottom:8px">Chain: ${full}</b><table class="preview-table"><tr><th>Type</th><th>Code</th><th>Name</th></tr>`;
         parts.forEach(p => {
-            const info = ELEMENTS_DATA[p.t]?.find(i => i.Code.toString().padStart(2, '0') == p.c);
+            const info = window.ELEMENTS_DATA[p.t]?.find(i => i.Code.toString().padStart(2, '0') == p.c);
             const name = info ? (info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || 'N/A') : 'Unknown';
             html += `<tr><td>${p.l}</td><td>${p.c}</td><td>${name}</td></tr>`;
         });
@@ -776,7 +849,6 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// GỘP CẢ HAI NỘI DUNG KHI COPY
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -807,13 +879,6 @@ window.copyScript = function(fullCode) {
     });
 };
 
-
-// ==========================================
-// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CÓ FAVORITES
-// ==========================================
-window.STORE_DATA_CACHE = [];
-
-// TỰ ĐỘNG TẠO GIAO DIỆN STORE KHI BẤM TAB ĐỂ ĐÈ LÊN GIAO DIỆN CŨ
 window.buildStoreUI = function() {
     const storePane = document.getElementById('view-store');
     if (!storePane) return; 
@@ -854,11 +919,10 @@ window.renderStore = async function() {
     listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
     
     try {
-        // THÊM THỜI GIAN ĐỂ CHỐNG LỖI CACHE BROWSER CŨ
         const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
         let store = await res.json();
         window.STORE_DATA_CACHE = store;
-        window.currentStoreFilter = 'all'; // Reset nhóm Sidebar
+        window.currentStoreFilter = 'all'; 
         window.updateStoreUI();
     } catch (e) {
         listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
@@ -877,12 +941,9 @@ window.updateStoreUI = function() {
     if(!listDiv) return;
 
     let filtered = window.STORE_DATA_CACHE.filter(s => {
-        // Lọc Nhóm Sidebar
         if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        // Lọc Yêu thích
         if (isFavOnly && !s.isFavorite) return false;
         
-        // Lọc Tìm kiếm
         return s.code.toLowerCase().includes(searchVal) || 
                (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
                (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
@@ -902,7 +963,6 @@ window.updateStoreUI = function() {
 
     if(emptyDiv) emptyDiv.style.display = 'none';
 
-    // Tạo nhóm cho Sidebar
     let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
     window.STORE_DATA_CACHE.forEach(s => {
         const tc = s.targetCode || 'OTHER';
@@ -966,21 +1026,17 @@ window.updateStoreUI = function() {
     listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
 }
 
-// Bật / Tắt Yêu Thích ngay lập tức
 window.toggleFavorite = async function(id) {
     try {
         const item = window.STORE_DATA_CACHE.find(s => s.id === id);
         if(item) {
             item.isFavorite = !item.isFavorite;
-            window.updateStoreUI(); // Mượt mắt ngay lập tức
+            window.updateStoreUI(); 
         }
         await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
-    } catch(e) {
-        alert("Lỗi khi cập nhật Cloud!");
-    }
+    } catch(e) {}
 }
 
-// LƯU KỊCH BẢN VÀ GỘP TEXT
 window.saveScript = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -1019,7 +1075,6 @@ window.saveScript = async function(fullCode) {
             setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
         }
         
-        // Tự load lại Store nếu đang đứng ở tab Store
         if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
             window.renderStore();
         }
@@ -1058,8 +1113,8 @@ window.downloadText = function(code, content) {
     window.URL.revokeObjectURL(url);
 }
 
-// CÁC HÀM GỌI AI NHƯ CŨ
-async function generateAIScript(fullCode, btn) {
+// CÁC HÀM GỌI AI
+window.generateAIScript = async function(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
 
@@ -1078,7 +1133,7 @@ async function generateAIScript(fullCode, btn) {
         const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
         const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
         
-        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
+        const getEl = (type, code) => window.ELEMENTS_DATA && window.ELEMENTS_DATA[type] ? window.ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
         
         const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
         const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
@@ -1111,7 +1166,7 @@ async function generateAIScript(fullCode, btn) {
         const badgesHtml = badges.join('');
         const rawScriptText = data.script;
 
-        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">🖼️ Scene Image</button>`;
+        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="window.requestSceneImage('${fullCode}')" style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">🖼️ Scene Image</button>`;
         const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" style="background:#f59e0b;color:white;border:1px solid #d97706;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 1px 2px rgba(0,0,0,.05);">🎬 Prompt</button>`;
         const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">📋 Copy</button>`;
         const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">💾 Save</button>`;
@@ -1143,7 +1198,7 @@ async function generateAIScript(fullCode, btn) {
     }
 }
 
-async function requestSceneImage(fullCode) {
+window.requestSceneImage = async function(fullCode) {
     const btn = document.getElementById(`img-btn-${fullCode}`);
     if (!btn) return;
 
@@ -1195,7 +1250,7 @@ async function requestSceneImage(fullCode) {
     }
 }
 
-function renderGalleryView() {
+window.renderGalleryView = function() {
     const container = document.getElementById('gallery-container');
     if (!container) return;
 
@@ -1220,7 +1275,7 @@ function renderGalleryView() {
                 <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
                     <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
                     <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Content</button>
+                    <button onclick="window.showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Content</button>
                 </div>
             </div>
         `;
@@ -1229,7 +1284,7 @@ function renderGalleryView() {
     container.innerHTML = html;
 }
 
-function showScriptModal(index) {
+window.showScriptModal = function(index) {
     const data = window.SCENE_GALLERY[index];
     if (!data) return;
     const content = document.getElementById('script-modal-content');

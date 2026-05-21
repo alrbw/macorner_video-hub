@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Layout Fixed)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -17,6 +17,19 @@ if (!document.getElementById('modern-ui-styles')) {
         .btn-scene { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
         .btn-scene:hover { background: #dbeafe; }
         .prompt-builder-wrapper { margin-top:20px; padding:20px; background:#fffaf5; border-radius:8px; border:1px solid #fed7aa; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.05); transition: all 0.3s ease; }
+        
+        /* Box hiển thị Prompt cố định chiều cao */
+        .prompt-view-box {
+            width: 100%; height: 450px; overflow-y: auto; padding: 15px; 
+            font-family: inherit; font-size: 14px; border: 1px solid #cbd5e1; 
+            border-radius: 6px; margin-top: 10px; background: #fafaf9; 
+            box-sizing: border-box; white-space: pre-wrap; line-height: 1.6;
+        }
+        /* Custom scrollbar mượt mà */
+        .prompt-view-box::-webkit-scrollbar { width: 6px; }
+        .prompt-view-box::-webkit-scrollbar-track { background: transparent; }
+        .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>`);
 }
 
@@ -618,8 +631,13 @@ function renderReviewView() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
-            // Ép nội dung thành 1 chuỗi liên tục để tránh lỗi white-space sinh khoảng trắng
-            const ugcPromptResultContent = ugcPromptResult ? `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${code}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px; white-space:pre-wrap;">${ugcPromptResult}</div>` : '';
+            const ugcPromptResultContent = ugcPromptResult ? `
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
+                    <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                </div>
+                <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
+            ` : '';
 
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
@@ -628,7 +646,7 @@ function renderReviewView() {
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="background: white; padding: 20px; border-radius: 8px; font-size: 14.5px; border: 1px solid #e2e8f0; line-height: 1.7; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); color: #334155; display: ${promptResultDisplay};">${ugcPromptResultContent}</div>
+                    <div id="prompt-result-${code}" style="display: ${promptResultDisplay};">${ugcPromptResultContent}</div>
                 </div>
             ` : '';
 
@@ -729,9 +747,13 @@ window.generateShootingPrompt = async function(fullCode) {
         if (data.error) throw new Error(data.error);
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+        const copyBtn = `<button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>`;
+        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>`;
         
-        // Cấu trúc chuỗi HTML phẳng, không xuống dòng để tránh lỗi khoảng trắng
-        resultBox.innerHTML = `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${fullCode}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px; white-space:pre-wrap;">${data.prompt}</div>`;
+        resultBox.innerHTML = `
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">${editBtn}${copyBtn}</div>
+            <div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>
+        `;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -746,12 +768,13 @@ window.generateShootingPrompt = async function(fullCode) {
     }
 }
 
-// Logic Edit Prompt (Sửa & Lưu)
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
     
-    // Nâng cấp textarea: min-height 450px, border-box, resize dọc
+    // Gỡ class View để xóa giới hạn chiều cao
+    textDiv.classList.remove('prompt-view-box');
+    
     textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
@@ -765,6 +788,10 @@ window.savePromptEdit = function(code) {
     if(!textarea) return;
     const newText = textarea.value;
     const textDiv = document.getElementById(`prompt-text-${code}`);
+    
+    // Xóa textarea và phục hồi class View
+    textDiv.innerHTML = '';
+    textDiv.classList.add('prompt-view-box');
     textDiv.innerText = newText; 
     
     const cacheData = AI_CACHE.get(code);
@@ -781,6 +808,10 @@ window.cancelPromptEdit = function(code) {
     const cacheData = AI_CACHE.get(code);
     const originalText = cacheData ? cacheData.shootingPrompt : '';
     const textDiv = document.getElementById(`prompt-text-${code}`);
+    
+    // Xóa textarea và phục hồi class View
+    textDiv.innerHTML = '';
+    textDiv.classList.add('prompt-view-box');
     textDiv.innerText = originalText;
     
     const editBtn = document.getElementById(`edit-prompt-btn-${code}`);
@@ -839,7 +870,6 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// LOGIC MỚI: CHỈ COPY SCRIPT THÔ
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -867,9 +897,6 @@ window.copyScript = function(fullCode) {
     });
 };
 
-// ==========================================
-// CLOUD SCRIPT STORE LARK BASE
-// ==========================================
 window.STORE_DATA_CACHE = [];
 
 window.buildStoreUI = function() {

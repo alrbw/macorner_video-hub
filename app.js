@@ -1,7 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V61 (Edit UGC Prompt, Self-Gift Fix, Context Enhancement)
- * Separated Version - Frontend Logic
+ * FULL AUTO V63 - Fixed CORS & Better Error Handling
  */
 
 let RAW_DATA = [];
@@ -30,7 +29,7 @@ window.CURRENT_RENDERED_E4 = [];
 let GLOBAL_CACHE_KEY = ""; 
 window.STORE_DATA_CACHE = [];
 
-// LINK SERVER KOYEB (Cập nhật link node.js của bạn)
+// LINK SERVER KOYEB CỦA BẠN
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 // ======================= HELPER FUNCTIONS ========================
@@ -142,7 +141,7 @@ function switchView(view) {
     document.getElementById(`nav-${view}`).classList.add('active');
 
     if (view === 'review') renderReviewView();
-    if (view === 'gallery') renderGalleryView(); 
+    if (view === 'gallery') window.renderGalleryView(); 
     if (view === 'store') window.renderStore();
 }
 
@@ -244,13 +243,21 @@ if (btnAnalyze) {
             document.getElementById('targetVideoCode').value = tempTargetCode;
             
         } catch (err) {
-            alert(`❌ Lỗi: ${err.message}`);
+            // FIX THÔNG BÁO LỖI MẠNG CHO DỄ HIỂU
+            let errorMsg = err.message;
+            if (errorMsg.includes("Failed to fetch") || errorMsg.includes("NetworkError") || errorMsg.includes("CORS")) {
+                errorMsg = "Không thể kết nối đến Server. Koyeb có thể đang Sleep hoặc Crash. Hãy tải lại trang hoặc kiểm tra Server!";
+            }
+            alert(`❌ Lỗi: ${errorMsg}`);
+            
             const tcMatch = inputVal.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
             if (tcMatch) tempTargetCode = tcMatch[1].toUpperCase();
         } finally {
             btn.innerText = "Start Analysis";
             btn.disabled = false;
         }
+
+        if(!tempTargetCode || tempTargetCode.length < 3) return;
 
         GLOBAL_TARGET_CODE = tempTargetCode;
         GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
@@ -790,7 +797,11 @@ window.generateShootingPrompt = async function(fullCode) {
         AI_CACHE.set(fullCode, cacheData);
         saveStateToCache();
     } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
+        let errorMsg = err.message;
+        if (errorMsg.includes("Failed to fetch") || errorMsg.includes("NetworkError")) {
+            errorMsg = "Mất kết nối! Server Koyeb đang bảo trì hoặc bị lỗi.";
+        }
+        resultBox.innerHTML = `<span style="color:red;">❌ Error: ${errorMsg}</span>`;
     } finally {
         btn.innerText = "Generate";
         btn.disabled = false;
@@ -925,7 +936,7 @@ window.renderStore = async function() {
         window.currentStoreFilter = 'all'; 
         window.updateStoreUI();
     } catch (e) {
-        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
+        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server Koyeb: ${e.message}</span>`;
     }
 }
 
@@ -1157,6 +1168,7 @@ window.generateAIScript = async function(fullCode, btn) {
             })
         });
 
+        if (!res.ok) throw new Error("Lỗi HTTP Server: " + res.status);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
@@ -1191,7 +1203,11 @@ window.generateAIScript = async function(fullCode, btn) {
         renderReviewView();
 
     } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
+        let errorMsg = err.message;
+        if (errorMsg.includes("Failed to fetch") || errorMsg.includes("NetworkError")) {
+            errorMsg = "Mất kết nối! Server Koyeb đang bị lỗi (crash) hoặc quá tải.";
+        }
+        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${errorMsg}</span>`;
     } finally {
         btn.disabled = false;
         btn.innerText = "✨ Redo";
@@ -1225,6 +1241,7 @@ window.requestSceneImage = async function(fullCode) {
             })
         });
 
+        if (!res.ok) throw new Error("Server error");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
@@ -1243,7 +1260,7 @@ window.requestSceneImage = async function(fullCode) {
         btn.style.background = "#10b981";
 
     } catch (err) {
-        alert(`❌ Lỗi tạo ảnh: ${err.message}`);
+        alert(`❌ Lỗi kết nối máy chủ tạo ảnh! (${err.message})`);
         btn.innerText = "🖼️ Scene Image";
         btn.style.background = "#2563eb";
         btn.disabled = false;

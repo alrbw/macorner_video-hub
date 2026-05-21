@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Editable Prompt)
  */
 
 let RAW_DATA = [];
@@ -600,7 +600,14 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
-            // GỘP Ô COUNTRY -> CHỈ CÒN 1 Ô NHẬP DUY NHẤT
+            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);`;
+            
+            const ugcPromptResultContent = ugcPromptResult ? `
+                <button onclick="${copyPromptStr}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>
+                <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #0284c7; border-radius: 4px; cursor: pointer; background: #f0f9ff; font-weight: bold; color: #0284c7;">✏️ Edit</button>
+                <div id="prompt-text-${code}" style="clear:both;">${ugcPromptResult}</div>
+            ` : '';
+
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
                     <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
@@ -608,7 +615,7 @@ function renderReviewView() {
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px; white-space:nowrap;">Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResult ? `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>${ugcPromptResult}` : ''}</div>
+                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResultContent}</div>
                 </div>
             ` : '';
 
@@ -708,8 +715,11 @@ window.generateShootingPrompt = async function(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const copyBtn = `<button onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('📋 Copy', '').trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
-        resultBox.innerHTML = copyBtn + data.prompt;
+        const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);`;
+        const copyBtn = `<button onclick="${copyPromptStr}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
+        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #0284c7; border-radius: 4px; cursor: pointer; background: #f0f9ff; font-weight: bold; color: #0284c7;">✏️ Edit</button>`;
+        
+        resultBox.innerHTML = `${copyBtn}${editBtn}<div id="prompt-text-${fullCode}" style="clear:both;">${data.prompt}</div>`;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -723,6 +733,45 @@ window.generateShootingPrompt = async function(fullCode) {
         btn.disabled = false;
     }
 }
+
+// Logic Edit Prompt (Sửa & Lưu)
+window.editPrompt = function(code) {
+    const textDiv = document.getElementById(`prompt-text-${code}`);
+    const currentText = textDiv.innerText;
+    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; height:250px; padding:10px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:4px; margin-top:10px;">${currentText}</textarea>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;">💾 Save Edit</button>
+        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;">✖ Cancel</button>
+    </div>`;
+    document.getElementById(`edit-prompt-btn-${code}`).style.display = 'none';
+};
+
+window.savePromptEdit = function(code) {
+    const textarea = document.getElementById(`prompt-textarea-${code}`);
+    if(!textarea) return;
+    const newText = textarea.value;
+    const textDiv = document.getElementById(`prompt-text-${code}`);
+    textDiv.innerText = newText; 
+    
+    const cacheData = AI_CACHE.get(code);
+    if(cacheData) {
+        cacheData.shootingPrompt = newText;
+        AI_CACHE.set(code, cacheData);
+        saveStateToCache();
+    }
+    const editBtn = document.getElementById(`edit-prompt-btn-${code}`);
+    if(editBtn) editBtn.style.display = 'inline-block';
+};
+
+window.cancelPromptEdit = function(code) {
+    const cacheData = AI_CACHE.get(code);
+    const originalText = cacheData ? cacheData.shootingPrompt : '';
+    const textDiv = document.getElementById(`prompt-text-${code}`);
+    textDiv.innerText = originalText;
+    
+    const editBtn = document.getElementById(`edit-prompt-btn-${code}`);
+    if(editBtn) editBtn.style.display = 'inline-block';
+};
 
 function adjustTooltip(e, tooltip) {
     const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
@@ -813,7 +862,6 @@ window.copyScript = function(fullCode) {
 // ==========================================
 window.STORE_DATA_CACHE = [];
 
-// TỰ ĐỘNG TẠO GIAO DIỆN STORE KHI BẤM TAB ĐỂ ĐÈ LÊN GIAO DIỆN CŨ
 window.buildStoreUI = function() {
     const storePane = document.getElementById('view-store');
     if (!storePane) return; 
@@ -854,11 +902,10 @@ window.renderStore = async function() {
     listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
     
     try {
-        // THÊM THỜI GIAN ĐỂ CHỐNG LỖI CACHE BROWSER CŨ
         const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
         let store = await res.json();
         window.STORE_DATA_CACHE = store;
-        window.currentStoreFilter = 'all'; // Reset nhóm Sidebar
+        window.currentStoreFilter = 'all'; 
         window.updateStoreUI();
     } catch (e) {
         listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
@@ -877,12 +924,9 @@ window.updateStoreUI = function() {
     if(!listDiv) return;
 
     let filtered = window.STORE_DATA_CACHE.filter(s => {
-        // Lọc Nhóm Sidebar
         if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        // Lọc Yêu thích
         if (isFavOnly && !s.isFavorite) return false;
         
-        // Lọc Tìm kiếm
         return s.code.toLowerCase().includes(searchVal) || 
                (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
                (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
@@ -902,7 +946,6 @@ window.updateStoreUI = function() {
 
     if(emptyDiv) emptyDiv.style.display = 'none';
 
-    // Tạo nhóm cho Sidebar
     let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
     window.STORE_DATA_CACHE.forEach(s => {
         const tc = s.targetCode || 'OTHER';
@@ -966,13 +1009,12 @@ window.updateStoreUI = function() {
     listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
 }
 
-// Bật / Tắt Yêu Thích ngay lập tức
 window.toggleFavorite = async function(id) {
     try {
         const item = window.STORE_DATA_CACHE.find(s => s.id === id);
         if(item) {
             item.isFavorite = !item.isFavorite;
-            window.updateStoreUI(); // Mượt mắt ngay lập tức
+            window.updateStoreUI();
         }
         await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
     } catch(e) {
@@ -1019,7 +1061,6 @@ window.saveScript = async function(fullCode) {
             setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
         }
         
-        // Tự load lại Store nếu đang đứng ở tab Store
         if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
             window.renderStore();
         }

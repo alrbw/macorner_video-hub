@@ -33,7 +33,7 @@ async function getLarkToken() {
 }
 
 // =====================================================================
-// API: CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
+// CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
 // =====================================================================
 
 app.get('/api/store', async (req, res) => {
@@ -149,8 +149,6 @@ app.delete('/api/store', async (req, res) => {
     }
 });
 
-// =====================================================================
-// API: DATA SCRAPING & ANALYSIS
 // =====================================================================
 
 async function fetchImageAsBase64(url) {
@@ -296,10 +294,6 @@ app.post('/api/analyze-link', async (req, res) => {
     }
 });
 
-// =====================================================================
-// API: TẠO CONTENT SCRIPT CHÍNH (ĐÃ TÁCH 2 LUỒNG SELF-GIFT / BÌNH THƯỜNG)
-// =====================================================================
-
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
@@ -338,15 +332,35 @@ app.post('/api/generate-script', async (req, res) => {
         let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
         let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        const e4 = fullCode.substring(6, 8);
+        // Đảm bảo buyer và receiver luôn được khởi tạo an toàn
         let insightName = String(e4Name);
+        let buyer = "The Viewer";
+        let receiver = "The Gift Recipient";
         
-        // Điều kiện nhận diện luồng Self-Gift
-        let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
+        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+        if (match) { 
+            receiver = match[1].trim(); 
+            buyer = match[2].trim(); 
+        } else { 
+            let fMatch = insightName.match(/for\s+(.*)/i); 
+            if (fMatch) { 
+                receiver = fMatch[1].trim(); 
+                buyer = `Anyone buying for ${receiver}`; 
+            } 
+        }
 
-        // Nhận diện Tone chung
+        let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+        
+        if (e2Check.includes("buyer")) {
+            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+        } else if (e2Check.includes("receiver")) {
+            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+        }
+
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
+        
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
             toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
         } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
@@ -361,82 +375,9 @@ app.post('/api/generate-script', async (req, res) => {
 
         const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
-        let systemRole = "";
-        let textPrompt = "";
-
-        // ==============================================================
-        // LUỒNG 1: NẾU LÀ SELF-GIFT (TỰ MUA CHO BẢN THÂN)
-        // ==============================================================
-        if (isSelfGift) {
-            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
-            
-            textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts).
-
-TARGET DURATION: 20 to 25 seconds.
-PRODUCT NAME: "${productBase || 'N/A'}"
-
-=== WARNING: CRITICAL CONTEXT ===
-The product details below might contain keywords like "gifts for dad", "perfect for grandpa", "for mom", etc. YOU MUST ABSOLUTELY IGNORE THOSE KEYWORDS. 
-The scenario is STRICTLY SELF-PURCHASE. The speaker in the video bought this item purely as a treat or reward for THEMSELVES. 
-
-${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
-${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
-
-=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
-1. POINT OF VIEW (POV): SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF, how it benefits YOU, or why YOU deserved a treat. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, GRANDPA, WIFE, OR ANYONE ELSE.
-2. TONE OF VOICE: ${toneInstruction} -> Keep this 100% consistent.
-
-=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
-You must structure the script based on the following requested elements. Execute them EXACTLY as described, but ADAPT THEM TO THE SELF-PURCHASE CONTEXT:
-
-1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
-   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence. Frame it around a personal realization, self-care, or treating oneself. NO GIFTING OTHERS.
-
-2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
-   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle. Focus purely on why YOU bought it for YOURSELF and your personal reaction/use.
-
-3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
-   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Encourage the viewer to treat themselves, upgrade their own life, or buy it for their own joy.
-
-ADDITIONAL CONTEXT FOR ELEMENTS:
-${elementsContext}
-
-=== IMAGE GUIDELINES (if an image is provided) ===
-- Describe only general visual attributes: colors, materials, textures, shapes, layout.
-- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-
-=== OUTPUT FORMAT ===
-- Divide the script into short scenes with timestamps.
-- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: [0:00-0:03] Your sentence here.
-- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
-`;
-        } 
-        // ==============================================================
-        // LUỒNG 2: MUA TẶNG CHO NGƯỜI KHÁC BÌNH THƯỜNG
-        // ==============================================================
-        else {
-            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
-            
-            let buyer = "The Viewer", receiver = "The Gift Recipient";
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-
-            let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-            
-            if (e2Check.includes("buyer")) {
-                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-            } else if (e2Check.includes("receiver")) {
-                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-            }
-
-            textPrompt = `
+        const systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
+        
+        const textPrompt = `
 You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
 
 TARGET DURATION: 20 to 25 seconds.
@@ -448,3 +389,135 @@ ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
 === CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
 1. POINT OF VIEW (POV): ${povInstruction}
+2. TONE OF VOICE: ${toneInstruction} -> IMPORTANT: The tone must be 100% consistent from the very first word of the hook to the final call-to-action.
+
+=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
+You must structure the script based on the following requested elements. Execute them EXACTLY as described:
+
+1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
+   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
+   -> Rule: Execute this specific type of hook perfectly in the first sentence to grab attention in your assigned tone.
+
+2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
+   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
+   -> Rule: Showcase the product following this exact storyline angle and your strictly assigned POV. Ensure it connects logically with the Hook.
+
+3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
+   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
+   -> Rule: End the script following this exact CTA intent. Ensure the CTA fits your assigned POV.
+
+ADDITIONAL CONTEXT FOR ELEMENTS:
+${elementsContext}
+
+=== IMAGE GUIDELINES (if an image is provided) ===
+- Describe only general visual attributes: colors, materials, textures, shapes, layout.
+- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
+- Do not reference personal identity, appearance, or sensitive attributes.
+
+=== OUTPUT FORMAT ===
+- Divide the script into short scenes with timestamps.
+- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
+- Use this format: [0:00-0:03] Your sentence here.
+- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
+`;
+
+        let messagesContent = [{ type: "text", text: textPrompt }];
+        let finalImageUsed = false;
+
+        if (imageUrl) {
+            try {
+                const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 10000 });
+                const base64 = Buffer.from(response.data).toString('base64');
+                const mimeType = response.headers['content-type'] || 'image/jpeg';
+                messagesContent.push({
+                    type: "image_url",
+                    image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" }
+                });
+                finalImageUsed = true;
+            } catch (err) { }
+        }
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: systemRole },
+                { role: "user", content: messagesContent }
+            ],
+            temperature: 0.4,
+            max_tokens: 1000
+        });
+
+        let scriptResult = completion.choices[0].message.content;
+        scriptResult = cleanAIScript(scriptResult);
+        const isRefused = scriptResult.length < 200 && (scriptResult.toLowerCase().includes("sorry") || scriptResult.toLowerCase().includes("cannot") || scriptResult.toLowerCase().includes("can't assist"));
+
+        if (isRefused && finalImageUsed) {
+            console.log("⚠️ OpenAI từ chối ảnh do Safety Filter. Đang tự động Fallback dùng chế độ Text-Only...");
+            const fallbackCompletion = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemRole },
+                    { role: "user", content: textPrompt }
+                ],
+                temperature: 0.4,
+                max_tokens: 1000
+            });
+            scriptResult = cleanAIScript(fallbackCompletion.choices[0].message.content);
+            finalImageUsed = false;
+        }
+
+        res.json({ script: scriptResult, hasImage: finalImageUsed });
+    } catch (error) {
+        console.error("API Generate Script Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/generate-ugc-prompt', async (req, res) => {
+    try {
+        const { script, recipientDesc } = req.body;
+        
+        if (!script || !recipientDesc) {
+            return res.status(400).json({ error: "Missing required fields for UGC Prompt." });
+        }
+
+        const systemRole = "You are a UGC content creation expert.";
+        
+        const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
+
+Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". Nếu có xuất hiện nhân vật khác thì đối chiếu để tạo nhân vật tương tác phù hợp.
+Bối cảnh (không gian, ánh sáng, trang phục): ĐẶC BIỆT CHÚ Ý ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản hoặc loại sản phẩm có nhắc đến các sở thích/hoạt động đặc thù (như đi đánh Golf, cắm trại, câu cá...) hoặc các dịp lễ hội (4th of July, Halloween, Christmas...), bối cảnh và trang phục PHẢI tương ứng (ví dụ: sân golf/đồ thể thao, đồ trang trí lễ hội...). Nếu không có ngữ cảnh đặc biệt, hãy mô tả bối cảnh đời thường quen thuộc của một người Mỹ trung bình.
+Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
+Cấu trúc mỗi Scene:
+Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.
+Dialogue: Lời thoại bằng tiếng Anh, tự nhiên, gần gũi (tự phát triển từ nội dung thô hoặc lấy thoại từ nội dung thô cho sẵn).
+Luồng nội dung: Scene 1 (Hook) -> Scene 2 (Features/Feel) -> Scene 3 (Unique Selling Point/Customization) -> Scene 4 (Emotional Value) -> Scene 5 (Closing).
+
+NỘI DUNG THÔ:
+${script}`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: systemRole },
+                { role: "user", content: textPrompt }
+            ],
+            temperature: 0.5,
+            max_tokens: 1200
+        });
+
+        res.json({ prompt: completion.choices[0].message.content.trim() });
+    } catch (error) {
+        console.error("API UGC Prompt Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.status(200).send('Server is running');
+});
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Master AI Server running on port ${PORT}`);
+});

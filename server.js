@@ -7,26 +7,42 @@ const fs = require('fs');
 const path = require('path');
 const { OpenAI } = require('openai');
 
-function cleanAIScript(text) {
-    if (!text) return "";
-    return text
-        .replace(/"/g, '')
-        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-        .replace(/#\w+/g, '')
-        .replace(/[^\w\s\[\]:'\-.,]/g, '')
-        .replace(/\s+/g, ' ')
-        .replace(/(\[\d{1,2}:\d{2}-\d{1,2}:\d{2}\])/g, '\n$1')
-        .trim();
-}
-
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ==========================================
-// TÍNH NĂNG CLOUD SCRIPT STORE CHUNG
+// 1. FIX LỖI CORS: Cấu hình Header chuẩn nhất
+// ==========================================
+app.use(cors({
+    origin: '*', // Chấp nhận request từ mọi domain (bao gồm github.io)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept']
+}));
+
+// Bọc thêm 1 lớp thủ công để tránh việc Proxy của Koyeb nuốt Header khi có lỗi
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    if (req.method === "OPTIONS") {
+        return res.status(200).end();
+    }
+    next();
+});
+
+app.use(express.json({ limit: '50mb' }));
+
+// Ngăn chặn crash server nếu quên cấu hình OPENAI_API_KEY trên Koyeb
+let openai;
+try {
+    openai = new OpenAI({ 
+        apiKey: process.env.OPENAI_API_KEY || 'DUMMY_KEY_TO_PREVENT_CRASH' 
+    });
+} catch(e) {
+    console.error("Khởi tạo OpenAI thất bại:", e.message);
+}
+
+// ==========================================
+// 2. CLOUD SCRIPT STORE CHUNG
 // ==========================================
 const STORE_FILE = path.join(__dirname, 'scripts_store.json');
 
@@ -56,13 +72,31 @@ app.post('/api/store', (req, res) => {
             productBase: req.body.productBase || req.body.product,
             targetCode: req.body.targetCode,
             content: req.body.content,
-            date: new Date().toISOString() 
+            date: new Date().toISOString(),
+            isFavorite: false // Mặc định không phải favorite
         };
         store.unshift(newScript); 
         writeStore(store);
         res.json({ success: true, item: newScript });
     } catch(e) {
         res.status(500).json({ error: "Lỗi ghi file Store: " + e.message });
+    }
+});
+
+// THÊM API Cập nhật trạng thái Yêu thích (Favorite) - BỊ THIẾU Ở BẢN TRƯỚC
+app.patch('/api/store/:id/favorite', (req, res) => {
+    try {
+        let store = readStore();
+        const item = store.find(s => s.id === req.params.id);
+        if (item) {
+            item.isFavorite = !item.isFavorite;
+            writeStore(store);
+            res.json({ success: true, isFavorite: item.isFavorite });
+        } else {
+            res.status(404).json({ error: "Item not found" });
+        }
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi cập nhật favorite: " + e.message });
     }
 });
 
@@ -92,6 +126,18 @@ async function getLarkToken() {
         app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET
     });
     return res.data.tenant_access_token;
+}
+
+function cleanAIScript(text) {
+    if (!text) return "";
+    return text
+        .replace(/"/g, '')
+        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+        .replace(/#\w+/g, '')
+        .replace(/[^\w\s\[\]:'\-.,]/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/(\[\d{1,2}:\d{2}-\d{1,2}:\d{2}\])/g, '\n$1')
+        .trim();
 }
 
 app.post('/api/analyze-link', async (req, res) => {
@@ -217,32 +263,40 @@ app.post('/api/analyze-link', async (req, res) => {
 
 app.post('/api/generate-script', async (req, res) => {
     try {
-        // Dữ liệu eData được truyền trực tiếp từ Frontend lên Server
+        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
+            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
+        }
+
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
         const safeNiche = String(niche || '');
 
-        const larkToken = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
-        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
-        const records = recordsRes.data.data.items || [];
+        let referenceText = "";
+        try {
+            const larkToken = await getLarkToken();
+            const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
+            const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
+            const records = recordsRes.data.data.items || [];
 
-        let scoredNotes = [];
-        const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
+            let scoredNotes = [];
+            const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
 
-        records.forEach(item => {
-            const fields = item.fields;
-            if (!fields || !fields['Note Edit']) return;
-            
-            const code = String(fields['Code'] || fields['Video Code'] || ''); 
-            let score = 0;
-            
-            if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
-            if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
-            
-            if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
-        });
-        scoredNotes.sort((a, b) => b.score - a.score);
-        const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
+            records.forEach(item => {
+                const fields = item.fields;
+                if (!fields || !fields['Note Edit']) return;
+                
+                const code = String(fields['Code'] || fields['Video Code'] || ''); 
+                let score = 0;
+                
+                if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
+                if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
+                
+                if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
+            });
+            scoredNotes.sort((a, b) => b.score - a.score);
+            referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
+        } catch(err) {
+            console.log("Cảnh báo: Không kết nối được Lark, tạo script chay...");
+        }
 
         const getEDataName = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.name || '') : (eData?.[key] || '');
         const getEDataExp = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.exp || '') : '';
@@ -401,6 +455,10 @@ ${elementsContext}
 
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
+        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
+            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
+        }
+
         const { script, recipientDesc } = req.body;
         
         if (!script || !recipientDesc) {
@@ -443,9 +501,41 @@ ${script}`;
     }
 });
 
+// THÊM API TẠO ẢNH SCENE (BỊ THIẾU Ở BẢN TRƯỚC)
+app.post('/api/generate-scene-image', async (req, res) => {
+    try {
+        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
+            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
+        }
+        
+        const { script, productBase } = req.body;
+        
+        const prompt = `Create a realistic UGC style photo showing someone holding or interacting with this product: ${productBase || 'gift'}. Context: ${script ? script.substring(0, 300) : 'People using the product naturally'}. Authentic, TikTok style, shot on iPhone, natural lighting.`;
+        
+        const response = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024"
+        });
+        
+        res.json({ imageUrl: response.data[0].url });
+    } catch (error) {
+        console.error("API Scene Image Error:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// BỘ CỨU HỘ: BẮT TOÀN BỘ LỖI CHỐNG SẬP SERVER
+// ==========================================
+app.use((err, req, res, next) => {
+    console.error("Global Error Handler Catch:", err);
+    res.status(500).json({ error: "Lỗi hệ thống nội bộ máy chủ", details: err.message });
+});
 
 app.get('/', (req, res) => {
-    res.status(200).send('Server is running');
+    res.status(200).send('Server is running and CORS is completely open.');
 });
 
 const PORT = process.env.PORT || 8000;

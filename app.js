@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Layout Fixed)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -275,7 +275,6 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
-// BẢNG E2/E4 CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
@@ -619,22 +618,17 @@ function renderReviewView() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
-            const ugcPromptResultContent = ugcPromptResult ? `
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
-                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
-                </div>
-                <div id="prompt-text-${code}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px;">${ugcPromptResult}</div>
-            ` : '';
+            // Ép nội dung thành 1 chuỗi liên tục để tránh lỗi white-space sinh khoảng trắng
+            const ugcPromptResultContent = ugcPromptResult ? `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${code}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px; white-space:pre-wrap;">${ugcPromptResult}</div>` : '';
 
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
                     <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;">🎬 Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
-                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
+                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="background: white; padding: 20px; border-radius: 8px; font-size: 14.5px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #e2e8f0; line-height: 1.7; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); color: #334155;">${ugcPromptResultContent}</div>
+                    <div id="prompt-result-${code}" style="background: white; padding: 20px; border-radius: 8px; font-size: 14.5px; border: 1px solid #e2e8f0; line-height: 1.7; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); color: #334155; display: ${promptResultDisplay};">${ugcPromptResultContent}</div>
                 </div>
             ` : '';
 
@@ -735,13 +729,9 @@ window.generateShootingPrompt = async function(fullCode) {
         if (data.error) throw new Error(data.error);
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
-        const copyBtn = `<button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>`;
-        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>`;
         
-        resultBox.innerHTML = `
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">${editBtn}${copyBtn}</div>
-            <div id="prompt-text-${fullCode}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px;">${data.prompt}</div>
-        `;
+        // Cấu trúc chuỗi HTML phẳng, không xuống dòng để tránh lỗi khoảng trắng
+        resultBox.innerHTML = `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${fullCode}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px; white-space:pre-wrap;">${data.prompt}</div>`;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -760,7 +750,9 @@ window.generateShootingPrompt = async function(fullCode) {
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
-    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; height:250px; padding:12px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
+    
+    // Nâng cấp textarea: min-height 450px, border-box, resize dọc
+    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
         <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
@@ -847,12 +839,12 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// LOGIC MỚI: CHỈ COPY SCRIPT THÔ, BỎ QUA PROMPT QUAY VIDEO
+// LOGIC MỚI: CHỈ COPY SCRIPT THÔ
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
     
-    const contentToCopy = cacheData.rawScript; // Chỉ copy kịch bản gốc
+    const contentToCopy = cacheData.rawScript; 
     
     const cleanedScript = contentToCopy
         .split('\n')
@@ -876,7 +868,7 @@ window.copyScript = function(fullCode) {
 };
 
 // ==========================================
-// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CÓ FAVORITES
+// CLOUD SCRIPT STORE LARK BASE
 // ==========================================
 window.STORE_DATA_CACHE = [];
 
@@ -1040,7 +1032,6 @@ window.toggleFavorite = async function(id) {
     }
 }
 
-// LƯU KỊCH BẢN VÀ GỘP TEXT VÀO STORE
 window.saveScript = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -1115,183 +1106,4 @@ window.downloadText = function(code, content) {
     a.download = `${code}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
-}
-
-// CÁC HÀM GỌI AI NHƯ CŨ VÀ RENDER GIAO DIỆN MỚI
-async function generateAIScript(fullCode, btn) {
-    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
-
-    const row = document.getElementById(`ai-row-${fullCode}`);
-    const resultBox = document.getElementById(`ai-result-${fullCode}`);
-    const toggleBtn = document.getElementById(`toggle-btn-${fullCode}`);
-
-    row.style.display = 'table-row';
-    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
-    btn.disabled = true;
-
-    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
-    resultBox.innerHTML = processText;
-
-    try {
-        const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
-        const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
-        
-        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
-        
-        const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
-        const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
-
-        const eData = { 
-            e1: { name: getName(iE1), exp: iE1?.Explanation || '' },
-            e2: { name: getName(iE2), exp: iE2?.Explanation || '', group: iE2?.Group || '' },
-            e3: { name: getName(iE3), exp: iE3?.Explanation || '' },
-            e4: { name: getName(iE4), exp: iE4?.Explanation || '' }, 
-            e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/generate-script`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fullCode, niche: CURRENT_NICHE, productBase,
-                scrapedData: GLOBAL_SCRAPED_DATA,
-                imageUrl: GLOBAL_IMAGE_URL,
-                spentCodes, eData
-            })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        let badges = [];
-        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
-
-        const badgesHtml = badges.join('');
-        const rawScriptText = data.script;
-
-        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" class="modern-action-btn btn-scene">🖼️ Scene Image</button>`;
-        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
-        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
-        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
-
-        const scriptHtml = `
-            <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="font-size:14px; color:#1e293b;"><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
-                <div style="display:flex;gap:10px;align-items:center;">
-                    ${promptBtnHtml}
-                    ${copyBtnHtml}
-                    ${saveBtnHtml}
-                    ${imgBtnHtml}
-                </div>
-            </div>
-            <div style="white-space:pre-wrap; padding:0 8px; font-size:14.5px; color:#334155; line-height:1.7;">${data.script}</div>
-        `;
-
-        resultBox.innerHTML = scriptHtml;
-        AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
-        saveStateToCache(); 
-        
-        renderReviewView();
-
-    } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "✨ Redo";
-    }
-}
-
-async function requestSceneImage(fullCode) {
-    const btn = document.getElementById(`img-btn-${fullCode}`);
-    if (!btn) return;
-
-    const cacheData = AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
-
-    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
-
-    btn.innerText = "⏳ Generating (~15s)...";
-    btn.disabled = true;
-    btn.style.background = "#94a3b8";
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/generate-scene-image`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fullCode: fullCode,
-                script: cacheData.rawScript,
-                productBase: productBase,
-                scrapedData: GLOBAL_SCRAPED_DATA,
-                imageUrl: GLOBAL_IMAGE_URL
-            })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        window.SCENE_GALLERY.push({
-            fullCode: fullCode,
-            imageUrl: data.imageUrl,
-            script: cacheData.rawScript,
-            productBase: productBase
-        });
-
-        saveGallery();
-        saveStateToCache();
-
-        alert("✅ Image generated successfully! Check the 'Scene Gallery' tab.");
-        btn.innerText = "✅ Saved to Gallery";
-        btn.style.background = "#10b981";
-
-    } catch (err) {
-        alert(`❌ Lỗi tạo ảnh: ${err.message}`);
-        btn.innerText = "🖼️ Scene Image";
-        btn.style.background = "#eff6ff";
-        btn.disabled = false;
-    }
-}
-
-function renderGalleryView() {
-    const container = document.getElementById('gallery-container');
-    if (!container) return;
-
-    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
-        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images generated yet. Go to Selection Review to generate some!</div>`;
-        return;
-    }
-
-    let html = '';
-    const reversed = [...window.SCENE_GALLERY].reverse();
-
-    reversed.forEach((data, index) => {
-        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
-
-        html += `
-            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
-                <div style="width: 100%; aspect-ratio: 9 / 16; background: #f8fafc; overflow: hidden;">
-                    <a href="${data.imageUrl}" target="_blank">
-                        <img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy">
-                    </a>
-                </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Content</button>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-function showScriptModal(index) {
-    const data = window.SCENE_GALLERY[index];
-    if (!data) return;
-    const content = document.getElementById('script-modal-content');
-    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
-    document.getElementById('script-modal').style.display = 'flex';
 }

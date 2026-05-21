@@ -25,74 +25,144 @@ app.use(express.json({ limit: '50mb' }));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ==========================================
-// CLOUD SCRIPT STORE
-// ==========================================
-const STORE_FILE = path.join(__dirname, 'scripts_store.json');
-
-function readStore() {
-    if (!fs.existsSync(STORE_FILE)) return [];
-    try { 
-        return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
-    } catch(e) { 
-        return []; 
-    }
-}
-
-function writeStore(data) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-app.get('/api/store', (req, res) => {
-    res.json(readStore());
-});
-
-app.post('/api/store', (req, res) => {
-    try {
-        const store = readStore();
-        const newScript = { 
-            id: Date.now().toString(), 
-            code: req.body.code || req.body.fullCode,
-            productBase: req.body.productBase || req.body.product,
-            targetCode: req.body.targetCode,
-            content: req.body.content,
-            date: new Date().toISOString() 
-        };
-        store.unshift(newScript);
-        writeStore(store);
-        res.json({ success: true, item: newScript });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi ghi file Store: " + e.message });
-    }
-});
-
-app.delete('/api/store', (req, res) => {
-    try {
-        writeStore([]);
-        res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
-    }
-});
-
-app.delete('/api/store/:id', (req, res) => {
-    try {
-        let store = readStore();
-        store = store.filter(s => s.id !== req.params.id);
-        writeStore(store);
-        res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
-    }
-});
-// ==========================================
-
 async function getLarkToken() {
     const res = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', {
         app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET
     });
     return res.data.tenant_access_token;
 }
+
+// =====================================================================
+// LUỒNG MỚI: CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
+// =====================================================================
+
+// 1. Tải danh sách kịch bản lưu trữ từ Lark Base
+app.get('/api/store', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
+        
+        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        // Map dữ liệu từ Lark Base về định dạng cấu trúc frontend cần sử dụng
+        const store = items.map(item => ({
+            id: item.record_id, // Biến record_id của Lark thành ID xử lý chính trên giao diện
+            code: item.fields['Code'] || "",
+            productBase: item.fields['Product Base'] || "",
+            targetCode: item.fields['Target Code'] || "",
+            content: item.fields['Content'] || "",
+            isFavorite: !!item.fields['Is Favorite'],
+            date: item.fields['Date'] || new Date().toISOString()
+        }));
+        
+        // Sắp xếp các kịch bản mới nhất lên đầu danh sách
+        store.sort((a, b) => new Date(b.date) - new Date(a.date));
+        res.json(store);
+    } catch(e) {
+        console.error("Lỗi GET Store từ Lark:", e.message);
+        res.status(500).json({ error: "Không thể lấy dữ liệu kịch bản từ Lark: " + e.message });
+    }
+});
+
+// 2. Thêm mới một kịch bản lên Lark Base
+app.post('/api/store', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records`;
+        
+        const fields = {
+            "Code": req.body.code || req.body.fullCode || "",
+            "Product Base": req.body.productBase || req.body.product || "Personalized Custom Gift",
+            "Target Code": req.body.targetCode || "",
+            "Content": req.body.content || "",
+            "Is Favorite": false,
+            "Date": new Date().toISOString()
+        };
+
+        const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
+        const newRecord = response.data?.data?.record;
+        
+        res.json({ 
+            success: true, 
+            item: {
+                id: newRecord?.record_id || Date.now().toString(),
+                ...fields
+            } 
+        });
+    } catch(e) {
+        console.error("Lỗi POST Store lên Lark:", e.message);
+        res.status(500).json({ error: "Không thể ghi kịch bản lên Lark Base: " + e.message });
+    }
+});
+
+// 3. Bật/Tắt trạng thái Yêu thích (Favorite) trực tiếp trên Lark Base
+app.patch('/api/store/:id/favorite', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const token = await getLarkToken();
+        
+        // Bước A: Lấy trạng thái hiện tại của bản ghi kịch bản
+        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        const recordRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const currentFields = recordRes.data?.data?.record?.fields || {};
+        const currentFav = !!currentFields['Is Favorite'];
+        
+        // Bước B: Đảo ngược giá trị Boolean và gửi cập nhật lên Lark Base
+        const patchUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        await axios.patch(patchUrl, {
+            fields: {
+                "Is Favorite": !currentFav
+            }
+        }, { headers: { 'Authorization': `Bearer ${token}` } });
+        
+        res.json({ success: true, isFavorite: !currentFav });
+    } catch(e) {
+        console.error("Lỗi PATCH Favorite lên Lark:", e.message);
+        res.status(500).json({ error: "Không thể đổi trạng thái yêu thích: " + e.message });
+    }
+});
+
+// 4. Xóa một kịch bản đơn lẻ khỏi Lark Base
+app.delete('/api/store/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        
+        await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        res.json({ success: true });
+    } catch(e) {
+        console.error("Lỗi DELETE đơn kịch bản:", e.message);
+        res.status(500).json({ error: "Không thể xóa kịch bản này trên Lark: " + e.message });
+    }
+});
+
+// 5. Xóa toàn bộ sạch kịch bản bằng cơ chế Batch Delete của Lark (Tối đa 500 bản ghi)
+app.delete('/api/store', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        
+        // Bước A: Quét toàn bộ danh sách bản ghi hiện có
+        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
+        const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        if (items.length > 0) {
+            const recordIds = items.map(i => i.record_id);
+            // Bước B: Kích hoạt API xóa hàng loạt của Lark Base
+            const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/batch_delete`;
+            await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
+        }
+        
+        res.json({ success: true });
+    } catch(e) {
+        console.error("Lỗi DELETE toàn bộ kịch bản:", e.message);
+        res.status(500).json({ error: "Không thể dọn sạch bảng lưu trữ kịch bản trên Lark: " + e.message });
+    }
+});
+
+// =====================================================================
 
 async function fetchImageAsBase64(url) {
     try {
@@ -278,10 +348,32 @@ app.post('/api/generate-script', async (req, res) => {
         const e4 = fullCode.substring(6, 8);
         let insightName = String(e4Name);
         
-        // Điều kiện phân tách luồng
         let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
 
-        // Tone Instruction (Dùng chung cho cả 2 luồng)
+        let purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
+        
+        if (isSelfGift) {
+            buyer = "The Speaker (treating themselves)";
+            receiver = "Themselves (Self-Gift)";
+            purchaseContext = `STRICT SELF-GIFT: The customer is buying this product strictly FOR THEMSELVES. If the product name implies a recipient (e.g., "Grandpa Mug", "Dad Shirt", "Wife Necklace"), you MUST roleplay AS THAT PERSON buying it for themselves (e.g., "I am a Grandpa and I bought this for myself to see my grandkids everyday"). DO NOT say "I bought this for him/her".`;
+        } else {
+            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+            purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
+        }
+
+        let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+        
+        if (isSelfGift) {
+            povInstruction = `SELF-PURCHASER POV (First-person): You are buying this FOR YOURSELF. Use "I", "my", "me". Focus on treating yourself. **CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR SOMEONE ELSE.**`;
+        } else if (e2Check.includes("buyer")) {
+            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+        } else if (e2Check.includes("receiver")) {
+            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+        }
+
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
@@ -301,9 +393,6 @@ app.post('/api/generate-script', async (req, res) => {
         let systemRole = "";
         let textPrompt = "";
 
-        // ==========================================
-        // LUỒNG 1: CHUYÊN BIỆT CHO SELF-GIFT (TỰ MUA)
-        // ==========================================
         if (isSelfGift) {
             systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
             
@@ -352,26 +441,9 @@ ${elementsContext}
 - Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
-        } 
-        // ==========================================
-        // LUỒNG 2: DÀNH CHO MUA TẶNG QUÀ (BÌNH THƯỜNG)
-        // ==========================================
-        else {
+        } else {
             systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
             
-            let buyer = "The Viewer", receiver = "The Gift Recipient";
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-
-            let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-            if (e2Check.includes("buyer")) {
-                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-            } else if (e2Check.includes("receiver")) {
-                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-            }
-
             textPrompt = `
 You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
 
@@ -468,9 +540,6 @@ ${elementsContext}
     }
 });
 
-// =====================================================================
-// API TẠO PROMPT QUAY VIDEO (ĐIỀU CHỈNH BỐI CẢNH LINH HOẠT)
-// =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;

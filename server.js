@@ -7,42 +7,26 @@ const fs = require('fs');
 const path = require('path');
 const { OpenAI } = require('openai');
 
-const app = express();
-
-// ==========================================
-// 1. FIX LỖI CORS: Cấu hình Header chuẩn nhất
-// ==========================================
-app.use(cors({
-    origin: '*', // Chấp nhận request từ mọi domain (bao gồm github.io)
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept']
-}));
-
-// Bọc thêm 1 lớp thủ công để tránh việc Proxy của Koyeb nuốt Header khi có lỗi
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-    if (req.method === "OPTIONS") {
-        return res.status(200).end();
-    }
-    next();
-});
-
-app.use(express.json({ limit: '50mb' }));
-
-// Ngăn chặn crash server nếu quên cấu hình OPENAI_API_KEY trên Koyeb
-let openai;
-try {
-    openai = new OpenAI({ 
-        apiKey: process.env.OPENAI_API_KEY || 'DUMMY_KEY_TO_PREVENT_CRASH' 
-    });
-} catch(e) {
-    console.error("Khởi tạo OpenAI thất bại:", e.message);
+function cleanAIScript(text) {
+    if (!text) return "";
+    return text
+        .replace(/"/g, '')
+        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+        .replace(/#\w+/g, '')
+        .replace(/[^\w\s\[\]:'\-.,]/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/(\[\d{1,2}:\d{2}-\d{1,2}:\d{2}\])/g, '\n$1')
+        .trim();
 }
 
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 // ==========================================
-// 2. CLOUD SCRIPT STORE CHUNG
+// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG
 // ==========================================
 const STORE_FILE = path.join(__dirname, 'scripts_store.json');
 
@@ -68,35 +52,17 @@ app.post('/api/store', (req, res) => {
         const store = readStore();
         const newScript = { 
             id: Date.now().toString(), 
-            code: req.body.code || req.body.fullCode, 
+            code: req.body.code || req.body.fullCode, // Hỗ trợ cả 2 tên biến
             productBase: req.body.productBase || req.body.product,
             targetCode: req.body.targetCode,
             content: req.body.content,
-            date: new Date().toISOString(),
-            isFavorite: false // Mặc định không phải favorite
+            date: new Date().toISOString() 
         };
-        store.unshift(newScript); 
+        store.unshift(newScript); // Đẩy lên đầu danh sách
         writeStore(store);
         res.json({ success: true, item: newScript });
     } catch(e) {
         res.status(500).json({ error: "Lỗi ghi file Store: " + e.message });
-    }
-});
-
-// THÊM API Cập nhật trạng thái Yêu thích (Favorite) - BỊ THIẾU Ở BẢN TRƯỚC
-app.patch('/api/store/:id/favorite', (req, res) => {
-    try {
-        let store = readStore();
-        const item = store.find(s => s.id === req.params.id);
-        if (item) {
-            item.isFavorite = !item.isFavorite;
-            writeStore(store);
-            res.json({ success: true, isFavorite: item.isFavorite });
-        } else {
-            res.status(404).json({ error: "Item not found" });
-        }
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi cập nhật favorite: " + e.message });
     }
 });
 
@@ -128,16 +94,26 @@ async function getLarkToken() {
     return res.data.tenant_access_token;
 }
 
-function cleanAIScript(text) {
-    if (!text) return "";
-    return text
-        .replace(/"/g, '')
-        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-        .replace(/#\w+/g, '')
-        .replace(/[^\w\s\[\]:'\-.,]/g, '')
-        .replace(/\s+/g, ' ')
-        .replace(/(\[\d{1,2}:\d{2}-\d{1,2}:\d{2}\])/g, '\n$1')
-        .trim();
+async function fetchImageAsBase64(url) {
+    try {
+        if (!url) return null;
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+            },
+            timeout: 10000
+        });
+
+        const mimeType = response.headers['content-type'] || '';
+        if (!mimeType.startsWith('image/')) return null;
+
+        const base64 = Buffer.from(response.data).toString('base64');
+        return `data:${mimeType};base64,${base64}`;
+    } catch (err) {
+        return null;
+    }
 }
 
 app.post('/api/analyze-link', async (req, res) => {
@@ -263,40 +239,31 @@ app.post('/api/analyze-link', async (req, res) => {
 
 app.post('/api/generate-script', async (req, res) => {
     try {
-        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
-            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
-        }
-
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
         const safeNiche = String(niche || '');
 
-        let referenceText = "";
-        try {
-            const larkToken = await getLarkToken();
-            const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
-            const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
-            const records = recordsRes.data.data.items || [];
+        const larkToken = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
+        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
+        const records = recordsRes.data.data.items || [];
 
-            let scoredNotes = [];
-            const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
+        let scoredNotes = [];
+        const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
 
-            records.forEach(item => {
-                const fields = item.fields;
-                if (!fields || !fields['Note Edit']) return;
-                
-                const code = String(fields['Code'] || fields['Video Code'] || ''); 
-                let score = 0;
-                
-                if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
-                if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
-                
-                if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
-            });
-            scoredNotes.sort((a, b) => b.score - a.score);
-            referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
-        } catch(err) {
-            console.log("Cảnh báo: Không kết nối được Lark, tạo script chay...");
-        }
+        records.forEach(item => {
+            const fields = item.fields;
+            if (!fields || !fields['Note Edit']) return;
+            
+            const code = String(fields['Code'] || fields['Video Code'] || ''); 
+            let score = 0;
+            
+            if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
+            if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
+            
+            if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
+        });
+        scoredNotes.sort((a, b) => b.score - a.score);
+        const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
 
         const getEDataName = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.name || '') : (eData?.[key] || '');
         const getEDataExp = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.exp || '') : '';
@@ -310,30 +277,17 @@ app.post('/api/generate-script', async (req, res) => {
 
         let insightName = String(e4Name);
         let buyer = "The Viewer", receiver = "The Gift Recipient";
-        let isSelfGift = insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
-
-        if (isSelfGift) {
-            buyer = "The Viewer (buying for themselves)";
-            receiver = "Themselves (Self-Gift)";
-        } else {
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-        }
+        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+        if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+        else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
 
         let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
         let e2Check = String(e2Group + " " + e2Name).toLowerCase();
         
-        if (isSelfGift) {
-            if (e2Check.includes("buyer") || e2Check.includes("receiver")) {
-                povInstruction = `BUYER POV (First-person): You are a customer who bought this item for YOURSELF as a self-gift/treat. Use 'I', 'my'. Talk about your personal experience, why you decided to treat yourself, and how much you love it. NEVER sound like a seller or brand.`;
-            }
-        } else {
-            if (e2Check.includes("buyer")) {
-                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-            } else if (e2Check.includes("receiver")) {
-                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-            }
+        if (e2Check.includes("buyer")) {
+            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+        } else if (e2Check.includes("receiver")) {
+            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
         }
 
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
@@ -453,12 +407,11 @@ ${elementsContext}
     }
 });
 
+// =====================================================================
+// API TẠO PROMPT QUAY VIDEO (ĐÃ SỬA LỖI UNEXPECTED TOKEN)
+// =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
-        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
-            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
-        }
-
         const { script, recipientDesc } = req.body;
         
         if (!script || !recipientDesc) {
@@ -469,12 +422,7 @@ app.post('/api/generate-ugc-prompt', async (req, res) => {
         
         const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
 
-Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ:
-- Nhân vật: tuổi, sắc tộc, trang phục, thái độ dựa trên thông tin: "${recipientDesc}".
-- Bối cảnh (không gian, ánh sáng, decor) và Trang phục: PHẢI linh hoạt thay đổi để phù hợp TUYỆT ĐỐI với đặc trưng của sản phẩm, hoạt động hoặc dịp tặng quà. (Ví dụ: Sản phẩm về Golf thì bối cảnh phải ở sân golf/ngoài trời và nhân vật mặc đồ thể thao; dịp lễ 4/7, Halloween, Giáng Sinh... thì bối cảnh phải có đồ trang trí tương ứng và trang phục phù hợp dịp lễ). Chỉ khi KHÔNG CÓ dịp hay hoạt động đặc thù nào thì mới dùng bối cảnh đời thường trong nhà với trang phục casual.
-- Đặc biệt đối với trường hợp "Self-Gift" (tự mua tự thưởng): Tuyệt đối KHÔNG mô tả cảnh chuẩn bị gói quà hay mang đi tặng, mà hãy mô tả cảnh nhân vật tự khui hàng, tự trải nghiệm và thể hiện sự thỏa mãn.
-Nếu có xuất hiện nhân vật khác thì sẽ đối chiếu với đối tượng người nhận để tạo thêm nhân vật trong prompt với độ tuổi phù hợp.
-
+Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, trang phục, thái độ) dựa trên thông tin: "${recipientDesc}" và bối cảnh (không gian, ánh sáng, đảm bảo là bối cảnh đời thường của một người Mỹ trung bình). Nếu có xuất hiện nhân vật khác thì sẽ đối chiếu với đối tượng người nhận để tạo thêm nhân vật trong prompt với độ tuổi phù hợp.
 Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
 Cấu trúc mỗi Scene:
 Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.
@@ -501,41 +449,9 @@ ${script}`;
     }
 });
 
-// THÊM API TẠO ẢNH SCENE (BỊ THIẾU Ở BẢN TRƯỚC)
-app.post('/api/generate-scene-image', async (req, res) => {
-    try {
-        if (!openai || process.env.OPENAI_API_KEY === "DUMMY_KEY_TO_PREVENT_CRASH") {
-            throw new Error("Chưa cấu hình OPENAI_API_KEY trên máy chủ Koyeb.");
-        }
-        
-        const { script, productBase } = req.body;
-        
-        const prompt = `Create a realistic UGC style photo showing someone holding or interacting with this product: ${productBase || 'gift'}. Context: ${script ? script.substring(0, 300) : 'People using the product naturally'}. Authentic, TikTok style, shot on iPhone, natural lighting.`;
-        
-        const response = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024"
-        });
-        
-        res.json({ imageUrl: response.data[0].url });
-    } catch (error) {
-        console.error("API Scene Image Error:", error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ==========================================
-// BỘ CỨU HỘ: BẮT TOÀN BỘ LỖI CHỐNG SẬP SERVER
-// ==========================================
-app.use((err, req, res, next) => {
-    console.error("Global Error Handler Catch:", err);
-    res.status(500).json({ error: "Lỗi hệ thống nội bộ máy chủ", details: err.message });
-});
 
 app.get('/', (req, res) => {
-    res.status(200).send('Server is running and CORS is completely open.');
+    res.status(200).send('Server is running');
 });
 
 const PORT = process.env.PORT || 8000;

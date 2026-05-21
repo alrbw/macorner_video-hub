@@ -275,42 +275,15 @@ app.post('/api/generate-script', async (req, res) => {
         let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
         let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        const e1 = fullCode.substring(0, 2);
         const e4 = fullCode.substring(6, 8);
-
         let insightName = String(e4Name);
-        let buyer = "The Viewer", receiver = "The Gift Recipient";
         
-        // Khóa cứng điều kiện Self-Gift để không bị sai lệch
+        // Điều kiện phân tách luồng
         let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
 
-        let purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
-        
-        if (isSelfGift) {
-            buyer = "The Speaker (treating themselves)";
-            receiver = "Themselves (Self-Gift)";
-            purchaseContext = `STRICT SELF-GIFT: The customer is buying this strictly FOR THEMSELVES. If the product name implies a recipient (e.g., "Grandpa Mug", "Dad Shirt", "Wife Necklace"), you MUST roleplay AS THAT PERSON buying it for themselves (e.g., "I am a Grandpa and I bought this for myself to see my grandkids everyday"). DO NOT say "I bought this for him/her".`;
-        } else {
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-            purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
-        }
-
-        let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-        
-        if (isSelfGift) {
-            povInstruction = `SELF-PURCHASER POV (First-person): You are buying this FOR YOURSELF. Use "I", "my", "me". Focus on treating yourself. **CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR SOMEONE ELSE.**`;
-        } else if (e2Check.includes("buyer")) {
-            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-        } else if (e2Check.includes("receiver")) {
-            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-        }
-
+        // Tone Instruction (Dùng chung cho cả 2 luồng)
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
-        
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
             toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
         } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
@@ -325,12 +298,86 @@ app.post('/api/generate-script', async (req, res) => {
 
         const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
-        const textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce products.
+        let systemRole = "";
+        let textPrompt = "";
+
+        // ==========================================
+        // LUỒNG 1: CHUYÊN BIỆT CHO SELF-GIFT (TỰ MUA)
+        // ==========================================
+        if (isSelfGift) {
+            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
+            
+            textPrompt = `
+You are an expert short-form video scriptwriter (TikTok/Reels/Shorts).
 
 TARGET DURATION: 20 to 25 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
-PURCHASE CONTEXT: ${purchaseContext}
+
+=== WARNING: CRITICAL CONTEXT ===
+The product details below might contain keywords like "gifts for dad", "perfect for grandpa", "for mom", etc. YOU MUST ABSOLUTELY IGNORE THOSE KEYWORDS. 
+The scenario is STRICTLY SELF-PURCHASE. The speaker in the video bought this item purely as a treat or reward for THEMSELVES. 
+
+${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
+${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
+
+=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
+1. POINT OF VIEW (POV): SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF, how it benefits YOU, or why YOU deserved a treat. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, GRANDPA, WIFE, OR ANYONE ELSE.
+2. TONE OF VOICE: ${toneInstruction} -> Keep this 100% consistent.
+
+=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
+You must structure the script based on the following requested elements. Execute them EXACTLY as described, but ADAPT THEM TO THE SELF-PURCHASE CONTEXT:
+
+1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
+   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
+   -> Rule: Execute this specific type of hook perfectly in the first sentence. Frame it around a personal realization, self-care, or treating oneself. NO GIFTING OTHERS.
+
+2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
+   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
+   -> Rule: Showcase the product following this exact storyline angle. Focus purely on why YOU bought it for YOURSELF and your personal reaction/use.
+
+3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
+   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
+   -> Rule: End the script following this exact CTA intent. Encourage the viewer to treat themselves, upgrade their own life, or buy it for their own joy.
+
+ADDITIONAL CONTEXT FOR ELEMENTS:
+${elementsContext}
+
+=== IMAGE GUIDELINES (if an image is provided) ===
+- Describe only general visual attributes: colors, materials, textures, shapes, layout.
+- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
+
+=== OUTPUT FORMAT ===
+- Divide the script into short scenes with timestamps.
+- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
+- Use this format: [0:00-0:03] Your sentence here.
+- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
+`;
+        } 
+        // ==========================================
+        // LUỒNG 2: DÀNH CHO MUA TẶNG QUÀ (BÌNH THƯỜNG)
+        // ==========================================
+        else {
+            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
+            
+            let buyer = "The Viewer", receiver = "The Gift Recipient";
+            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+
+            let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+            if (e2Check.includes("buyer")) {
+                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+            } else if (e2Check.includes("receiver")) {
+                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+            }
+
+            textPrompt = `
+You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
+
+TARGET DURATION: 20 to 25 seconds.
+PRODUCT NAME: "${productBase || 'N/A'}"
+GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
 
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
@@ -344,15 +391,15 @@ You must structure the script based on the following requested elements. Execute
 
 1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
    ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence. ${isSelfGift ? 'MUST frame it around personal use or treating oneself. NO GIFTING.' : ''}
+   -> Rule: Execute this specific type of hook perfectly in the first sentence.
 
 2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
    ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle and POV. ${isSelfGift ? 'Focus purely on why YOU bought it for YOURSELF and your personal reaction.' : ''}
+   -> Rule: Showcase the product following this exact storyline angle and POV.
 
 3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
    ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Ensure it fits your assigned POV. ${isSelfGift ? 'The CTA must encourage the viewer to treat themselves.' : ''}
+   -> Rule: End the script following this exact CTA intent. Ensure the CTA fits your assigned POV.
 
 ADDITIONAL CONTEXT FOR ELEMENTS:
 ${elementsContext}
@@ -360,7 +407,6 @@ ${elementsContext}
 === IMAGE GUIDELINES (if an image is provided) ===
 - Describe only general visual attributes: colors, materials, textures, shapes, layout.
 - Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-- Do not reference personal identity, appearance, or sensitive attributes.
 
 === OUTPUT FORMAT ===
 - Divide the script into short scenes with timestamps.
@@ -368,6 +414,7 @@ ${elementsContext}
 - Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
+        }
 
         let messagesContent = [{ type: "text", text: textPrompt }];
         let finalImageUsed = false;
@@ -384,10 +431,6 @@ ${elementsContext}
                 finalImageUsed = true;
             } catch (err) { }
         }
-
-        const systemRole = isSelfGift
-            ? "You are an expert UGC scriptwriter. CRITICAL INSTRUCTION: The scenario is 100% SELF-GIFT. The speaker bought the item for THEMSELVES. You will be heavily penalized if the script mentions buying it as a gift for someone else."
-            : "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -467,7 +510,6 @@ ${script}`;
         res.status(500).json({ error: error.message });
     }
 });
-
 
 app.get('/', (req, res) => {
     res.status(200).send('Server is running');

@@ -26,7 +26,7 @@ app.use(express.json({ limit: '50mb' }));
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ==========================================
-// TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CHUNG
+// CLOUD SCRIPT STORE
 // ==========================================
 const STORE_FILE = path.join(__dirname, 'scripts_store.json');
 
@@ -52,13 +52,13 @@ app.post('/api/store', (req, res) => {
         const store = readStore();
         const newScript = { 
             id: Date.now().toString(), 
-            code: req.body.code || req.body.fullCode, // Hỗ trợ cả 2 tên biến
+            code: req.body.code || req.body.fullCode,
             productBase: req.body.productBase || req.body.product,
             targetCode: req.body.targetCode,
             content: req.body.content,
             date: new Date().toISOString() 
         };
-        store.unshift(newScript); // Đẩy lên đầu danh sách
+        store.unshift(newScript);
         writeStore(store);
         res.json({ success: true, item: newScript });
     } catch(e) {
@@ -277,14 +277,23 @@ app.post('/api/generate-script', async (req, res) => {
 
         let insightName = String(e4Name);
         let buyer = "The Viewer", receiver = "The Gift Recipient";
-        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-        if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-        else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+        let isSelfGift = insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
+
+        if (isSelfGift) {
+            buyer = "The Viewer";
+            receiver = "Themselves";
+        } else {
+            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+        }
 
         let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
         let e2Check = String(e2Group + " " + e2Name).toLowerCase();
         
-        if (e2Check.includes("buyer")) {
+        if (isSelfGift) {
+            povInstruction = `SELF-PURCHASER POV (First-person): You are a customer who bought this item as a treat or gift for YOURSELF. Use 'I', 'my'. Talk about treating yourself, why you deserved it or needed it, and your excitement. NEVER sound like a seller or someone buying for another person.`;
+        } else if (e2Check.includes("buyer")) {
             povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
         } else if (e2Check.includes("receiver")) {
             povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
@@ -408,7 +417,7 @@ ${elementsContext}
 });
 
 // =====================================================================
-// API TẠO PROMPT QUAY VIDEO (ĐÃ SỬA LỖI UNEXPECTED TOKEN)
+// API TẠO PROMPT QUAY VIDEO (ĐIỀU CHỈNH BỐI CẢNH LINH HOẠT)
 // =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
@@ -422,7 +431,8 @@ app.post('/api/generate-ugc-prompt', async (req, res) => {
         
         const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
 
-Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, trang phục, thái độ) dựa trên thông tin: "${recipientDesc}" và bối cảnh (không gian, ánh sáng, đảm bảo là bối cảnh đời thường của một người Mỹ trung bình). Nếu có xuất hiện nhân vật khác thì sẽ đối chiếu với đối tượng người nhận để tạo thêm nhân vật trong prompt với độ tuổi phù hợp.
+Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". Nếu có xuất hiện nhân vật khác thì đối chiếu để tạo nhân vật tương tác phù hợp.
+Bối cảnh (không gian, ánh sáng, trang phục): ĐẶC BIỆT CHÚ Ý ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản hoặc loại sản phẩm có nhắc đến các sở thích/hoạt động đặc thù (như đi đánh Golf, cắm trại, câu cá...) hoặc các dịp lễ hội (4th of July, Halloween, Christmas...), bối cảnh và trang phục PHẢI tương ứng (ví dụ: sân golf/đồ thể thao, đồ trang trí lễ hội...). Nếu không có ngữ cảnh đặc biệt, hãy mô tả bối cảnh đời thường quen thuộc của một người Mỹ trung bình.
 Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
 Cấu trúc mỗi Scene:
 Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.

@@ -277,22 +277,32 @@ app.post('/api/generate-script', async (req, res) => {
 
         let insightName = String(e4Name);
         let buyer = "The Viewer", receiver = "The Gift Recipient";
-        let isSelfGift = insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
+        let isSelfGift = insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift") || insightName === "00";
+
+        let giftingContext = "";
 
         if (isSelfGift) {
             buyer = "The Viewer";
             receiver = "Themselves";
+            // Ép buộc ngữ cảnh rõ ràng để tránh AI nhận diện tên SP (vd: "Dad Shirt") thành quà tặng người khác
+            giftingContext = `CRITICAL: THIS IS A SELF-GIFT. The speaker bought this product FOR THEMSELVES. Do NOT frame this as buying a gift for someone else. If the product name implies a role (like "Dad", "Mom", "Wife"), the speaker IS that person buying it to celebrate themselves.`;
+            
+            // Khử nhiễu: Đổi tên E2 để AI không bị nhầm lẫn với "Buyer POV" (mua cho người khác)
+            if (e2Name.includes("Buyer POV")) {
+                e2Name = e2Name.replace("Buyer POV", "Self-Purchaser POV");
+            }
         } else {
             let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
             if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
             else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+            giftingContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
         }
 
         let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
         let e2Check = String(e2Group + " " + e2Name).toLowerCase();
         
         if (isSelfGift) {
-            povInstruction = `SELF-PURCHASER POV (First-person): You are a customer who bought this item as a treat or gift for YOURSELF. Use 'I', 'my'. Talk about treating yourself, why you deserved it or needed it, and your excitement. NEVER sound like a seller or someone buying for another person.`;
+            povInstruction = `SELF-PURCHASER POV (First-person): You are a customer who bought this item as a treat for YOURSELF. Use 'I', 'my'. Talk about treating yourself, why you deserved it or needed it. ABSOLUTELY DO NOT mention buying this for someone else (no dad, no mom, etc.).`;
         } else if (e2Check.includes("buyer")) {
             povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
         } else if (e2Check.includes("receiver")) {
@@ -321,7 +331,7 @@ You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializi
 
 TARGET DURATION: 20 to 25 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
-GIFTING CONTEXT: The buyer is ${buyer || 'a shopper'}. The recipient is ${receiver || 'a loved one'}.
+GIFTING CONTEXT: ${giftingContext}
 
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}

@@ -33,10 +33,9 @@ async function getLarkToken() {
 }
 
 // =====================================================================
-// LUỒNG MỚI: CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
+// API: CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
 // =====================================================================
 
-// 1. Tải danh sách kịch bản lưu trữ từ Lark Base
 app.get('/api/store', async (req, res) => {
     try {
         const token = await getLarkToken();
@@ -45,9 +44,8 @@ app.get('/api/store', async (req, res) => {
         const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         const items = recordsRes.data?.data?.items || [];
         
-        // Map dữ liệu từ Lark Base về định dạng cấu trúc frontend cần sử dụng
         const store = items.map(item => ({
-            id: item.record_id, // Biến record_id của Lark thành ID xử lý chính trên giao diện
+            id: item.record_id,
             code: item.fields['Code'] || "",
             productBase: item.fields['Product Base'] || "",
             targetCode: item.fields['Target Code'] || "",
@@ -56,7 +54,6 @@ app.get('/api/store', async (req, res) => {
             date: item.fields['Date'] || new Date().toISOString()
         }));
         
-        // Sắp xếp các kịch bản mới nhất lên đầu danh sách
         store.sort((a, b) => new Date(b.date) - new Date(a.date));
         res.json(store);
     } catch(e) {
@@ -65,7 +62,6 @@ app.get('/api/store', async (req, res) => {
     }
 });
 
-// 2. Thêm mới một kịch bản lên Lark Base
 app.post('/api/store', async (req, res) => {
     try {
         const token = await getLarkToken();
@@ -96,24 +92,19 @@ app.post('/api/store', async (req, res) => {
     }
 });
 
-// 3. Bật/Tắt trạng thái Yêu thích (Favorite) trực tiếp trên Lark Base
 app.patch('/api/store/:id/favorite', async (req, res) => {
     try {
         const { id } = req.params;
         const token = await getLarkToken();
         
-        // Bước A: Lấy trạng thái hiện tại của bản ghi kịch bản
         const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
         const recordRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         const currentFields = recordRes.data?.data?.record?.fields || {};
         const currentFav = !!currentFields['Is Favorite'];
         
-        // Bước B: Đảo ngược giá trị Boolean và gửi cập nhật lên Lark Base
         const patchUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
         await axios.patch(patchUrl, {
-            fields: {
-                "Is Favorite": !currentFav
-            }
+            fields: { "Is Favorite": !currentFav }
         }, { headers: { 'Authorization': `Bearer ${token}` } });
         
         res.json({ success: true, isFavorite: !currentFav });
@@ -123,7 +114,6 @@ app.patch('/api/store/:id/favorite', async (req, res) => {
     }
 });
 
-// 4. Xóa một kịch bản đơn lẻ khỏi Lark Base
 app.delete('/api/store/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -138,19 +128,16 @@ app.delete('/api/store/:id', async (req, res) => {
     }
 });
 
-// 5. Xóa toàn bộ sạch kịch bản bằng cơ chế Batch Delete của Lark (Tối đa 500 bản ghi)
 app.delete('/api/store', async (req, res) => {
     try {
         const token = await getLarkToken();
         
-        // Bước A: Quét toàn bộ danh sách bản ghi hiện có
         const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
         const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         const items = recordsRes.data?.data?.items || [];
         
         if (items.length > 0) {
             const recordIds = items.map(i => i.record_id);
-            // Bước B: Kích hoạt API xóa hàng loạt của Lark Base
             const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/batch_delete`;
             await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
         }
@@ -162,6 +149,8 @@ app.delete('/api/store', async (req, res) => {
     }
 });
 
+// =====================================================================
+// API: DATA SCRAPING & ANALYSIS
 // =====================================================================
 
 async function fetchImageAsBase64(url) {
@@ -307,6 +296,10 @@ app.post('/api/analyze-link', async (req, res) => {
     }
 });
 
+// =====================================================================
+// API: TẠO CONTENT SCRIPT CHÍNH (ĐÃ TÁCH 2 LUỒNG SELF-GIFT / BÌNH THƯỜNG)
+// =====================================================================
+
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
@@ -348,32 +341,10 @@ app.post('/api/generate-script', async (req, res) => {
         const e4 = fullCode.substring(6, 8);
         let insightName = String(e4Name);
         
+        // Điều kiện nhận diện luồng Self-Gift
         let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
 
-        let purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
-        
-        if (isSelfGift) {
-            buyer = "The Speaker (treating themselves)";
-            receiver = "Themselves (Self-Gift)";
-            purchaseContext = `STRICT SELF-GIFT: The customer is buying this product strictly FOR THEMSELVES. If the product name implies a recipient (e.g., "Grandpa Mug", "Dad Shirt", "Wife Necklace"), you MUST roleplay AS THAT PERSON buying it for themselves (e.g., "I am a Grandpa and I bought this for myself to see my grandkids everyday"). DO NOT say "I bought this for him/her".`;
-        } else {
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-            purchaseContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
-        }
-
-        let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-        
-        if (isSelfGift) {
-            povInstruction = `SELF-PURCHASER POV (First-person): You are buying this FOR YOURSELF. Use "I", "my", "me". Focus on treating yourself. **CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR SOMEONE ELSE.**`;
-        } else if (e2Check.includes("buyer")) {
-            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-        } else if (e2Check.includes("receiver")) {
-            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-        }
-
+        // Nhận diện Tone chung
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
@@ -393,6 +364,9 @@ app.post('/api/generate-script', async (req, res) => {
         let systemRole = "";
         let textPrompt = "";
 
+        // ==============================================================
+        // LUỒNG 1: NẾU LÀ SELF-GIFT (TỰ MUA CHO BẢN THÂN)
+        // ==============================================================
         if (isSelfGift) {
             systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
             
@@ -441,9 +415,27 @@ ${elementsContext}
 - Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
-        } else {
+        } 
+        // ==============================================================
+        // LUỒNG 2: MUA TẶNG CHO NGƯỜI KHÁC BÌNH THƯỜNG
+        // ==============================================================
+        else {
             systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
             
+            let buyer = "The Viewer", receiver = "The Gift Recipient";
+            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
+
+            let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+            
+            if (e2Check.includes("buyer")) {
+                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+            } else if (e2Check.includes("receiver")) {
+                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+            }
+
             textPrompt = `
 You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
 
@@ -456,135 +448,3 @@ ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
 === CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
 1. POINT OF VIEW (POV): ${povInstruction}
-2. TONE OF VOICE: ${toneInstruction} -> IMPORTANT: The tone must be 100% consistent from the very first word of the hook to the final call-to-action.
-
-=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
-You must structure the script based on the following requested elements. Execute them EXACTLY as described:
-
-1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
-   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence.
-
-2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
-   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle and POV.
-
-3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
-   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Ensure the CTA fits your assigned POV.
-
-ADDITIONAL CONTEXT FOR ELEMENTS:
-${elementsContext}
-
-=== IMAGE GUIDELINES (if an image is provided) ===
-- Describe only general visual attributes: colors, materials, textures, shapes, layout.
-- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-
-=== OUTPUT FORMAT ===
-- Divide the script into short scenes with timestamps.
-- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: [0:00-0:03] Your sentence here.
-- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
-`;
-        }
-
-        let messagesContent = [{ type: "text", text: textPrompt }];
-        let finalImageUsed = false;
-
-        if (imageUrl) {
-            try {
-                const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 10000 });
-                const base64 = Buffer.from(response.data).toString('base64');
-                const mimeType = response.headers['content-type'] || 'image/jpeg';
-                messagesContent.push({
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" }
-                });
-                finalImageUsed = true;
-            } catch (err) { }
-        }
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                { role: "system", content: systemRole },
-                { role: "user", content: messagesContent }
-            ],
-            temperature: 0.4,
-            max_tokens: 1000
-        });
-
-        let scriptResult = completion.choices[0].message.content;
-        scriptResult = cleanAIScript(scriptResult);
-        const isRefused = scriptResult.length < 200 && (scriptResult.toLowerCase().includes("sorry") || scriptResult.toLowerCase().includes("cannot") || scriptResult.toLowerCase().includes("can't assist"));
-
-        if (isRefused && finalImageUsed) {
-            console.log("⚠️ OpenAI từ chối ảnh do Safety Filter. Đang tự động Fallback dùng chế độ Text-Only...");
-            const fallbackCompletion = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemRole },
-                    { role: "user", content: textPrompt }
-                ],
-                temperature: 0.4,
-                max_tokens: 1000
-            });
-            scriptResult = cleanAIScript(fallbackCompletion.choices[0].message.content);
-            finalImageUsed = false;
-        }
-
-        res.json({ script: scriptResult, hasImage: finalImageUsed });
-    } catch (error) {
-        console.error("API Generate Script Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/generate-ugc-prompt', async (req, res) => {
-    try {
-        const { script, recipientDesc } = req.body;
-        
-        if (!script || !recipientDesc) {
-            return res.status(400).json({ error: "Missing required fields for UGC Prompt." });
-        }
-
-        const systemRole = "You are a UGC content creation expert.";
-        
-        const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
-
-Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". Nếu có xuất hiện nhân vật khác thì đối chiếu để tạo nhân vật tương tác phù hợp.
-Bối cảnh (không gian, ánh sáng, trang phục): ĐẶC BIỆT CHÚ Ý ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản hoặc loại sản phẩm có nhắc đến các sở thích/hoạt động đặc thù (như đi đánh Golf, cắm trại, câu cá...) hoặc các dịp lễ hội (4th of July, Halloween, Christmas...), bối cảnh và trang phục PHẢI tương ứng (ví dụ: sân golf/đồ thể thao, đồ trang trí lễ hội...). Nếu không có ngữ cảnh đặc biệt, hãy mô tả bối cảnh đời thường quen thuộc của một người Mỹ trung bình.
-Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
-Cấu trúc mỗi Scene:
-Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.
-Dialogue: Lời thoại bằng tiếng Anh, tự nhiên, gần gũi (tự phát triển từ nội dung thô hoặc lấy thoại từ nội dung thô cho sẵn).
-Luồng nội dung: Scene 1 (Hook) -> Scene 2 (Features/Feel) -> Scene 3 (Unique Selling Point/Customization) -> Scene 4 (Emotional Value) -> Scene 5 (Closing).
-
-NỘI DUNG THÔ:
-${script}`;
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                { role: "system", content: systemRole },
-                { role: "user", content: textPrompt }
-            ],
-            temperature: 0.5,
-            max_tokens: 1200
-        });
-
-        res.json({ prompt: completion.choices[0].message.content.trim() });
-    } catch (error) {
-        console.error("API UGC Prompt Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/', (req, res) => {
-    res.status(200).send('Server is running');
-});
-
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Master AI Server running on port ${PORT}`);
-});

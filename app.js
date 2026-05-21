@@ -1,7 +1,24 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Editable Prompt)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI)
  */
+
+if (!document.getElementById('modern-ui-styles')) {
+    document.head.insertAdjacentHTML('beforeend', `
+    <style id="modern-ui-styles">
+        .modern-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid transparent; }
+        .modern-action-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.08); }
+        .btn-prompt { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+        .btn-prompt:hover { background: #fef3c7; }
+        .btn-copy { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+        .btn-copy:hover { background: #f1f5f9; }
+        .btn-save { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+        .btn-save:hover { background: #dcfce7; }
+        .btn-scene { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .btn-scene:hover { background: #dbeafe; }
+        .prompt-builder-wrapper { margin-top:20px; padding:20px; background:#fffaf5; border-radius:8px; border:1px solid #fed7aa; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.05); transition: all 0.3s ease; }
+    </style>`);
+}
 
 let RAW_DATA = [];
 let SELECTED_PAIRS = new Map();
@@ -96,7 +113,7 @@ function switchView(view) {
 
     if (view === 'review') renderReviewView();
     if (view === 'gallery') renderGalleryView(); 
-    if (view === 'store') window.renderStore(); // Tự động cập nhật Cloud Store
+    if (view === 'store') window.renderStore(); 
 }
 
 function extractNiche(adName) {
@@ -600,22 +617,24 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
-            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);`;
+            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
             const ugcPromptResultContent = ugcPromptResult ? `
-                <button onclick="${copyPromptStr}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>
-                <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #0284c7; border-radius: 4px; cursor: pointer; background: #f0f9ff; font-weight: bold; color: #0284c7;">✏️ Edit</button>
-                <div id="prompt-text-${code}" style="clear:both;">${ugcPromptResult}</div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
+                    <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                </div>
+                <div id="prompt-text-${code}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px;">${ugcPromptResult}</div>
             ` : '';
 
             const builderHtml = hasCache ? `
-                <div id="prompt-builder-${code}" style="display:${showPromptBuilder ? 'block' : 'none'}; margin-top:15px; padding:15px; background:#fff7ed; border-radius:6px; border:1px dashed #fdba74;">
-                    <h4 style="margin:0 0 10px 0; color:#ea580c; font-size:14px;">🎬 Generate Video Shooting Prompt</h4>
-                    <div style="display:flex; gap:10px; margin-bottom:10px;">
-                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:8px; border:1px solid #fdba74; border-radius:4px; font-size:13px;" autocomplete="off">
-                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px; white-space:nowrap;">Generate</button>
+                <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
+                    <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;">🎬 Generate Video Shooting Prompt</h4>
+                    <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
+                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
+                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="background: white; padding: 15px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #fdba74; line-height: 1.6;">${ugcPromptResultContent}</div>
+                    <div id="prompt-result-${code}" style="background: white; padding: 20px; border-radius: 8px; font-size: 14.5px; white-space: pre-wrap; display: ${promptResultDisplay}; border: 1px solid #e2e8f0; line-height: 1.7; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); color: #334155;">${ugcPromptResultContent}</div>
                 </div>
             ` : '';
 
@@ -631,7 +650,7 @@ function renderReviewView() {
             </tr>
             <tr id="ai-row-${code}" style="display: ${aiRowStyle}; background:#f8fafc;">
                 <td colspan="7" style="padding: 15px; text-align: left; border-left: 3px solid #10a37f;">
-                    <div id="ai-result-${code}" style="font-size: 14px; line-height: 1.6; color: #333;">${scriptText}</div>
+                    <div id="ai-result-${code}">${scriptText}</div>
                     ${builderHtml}
                 </td>
             </tr>`;
@@ -715,11 +734,14 @@ window.generateShootingPrompt = async function(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);`;
-        const copyBtn = `<button onclick="${copyPromptStr}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #ea580c; border-radius: 4px; cursor: pointer; background: #fff7ed; font-weight: bold; color: #ea580c;">📋 Copy</button>`;
-        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="float: right; margin-left: 10px; margin-bottom: 5px; font-size: 11px; padding: 4px 8px; border: 1px solid #0284c7; border-radius: 4px; cursor: pointer; background: #f0f9ff; font-weight: bold; color: #0284c7;">✏️ Edit</button>`;
+        const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+        const copyBtn = `<button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>`;
+        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>`;
         
-        resultBox.innerHTML = `${copyBtn}${editBtn}<div id="prompt-text-${fullCode}" style="clear:both;">${data.prompt}</div>`;
+        resultBox.innerHTML = `
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">${editBtn}${copyBtn}</div>
+            <div id="prompt-text-${fullCode}" style="clear:both; border-top:1px dashed #e2e8f0; padding-top:12px;">${data.prompt}</div>
+        `;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -729,7 +751,7 @@ window.generateShootingPrompt = async function(fullCode) {
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
     } finally {
-        btn.innerText = "Generate";
+        btn.innerText = "✨ Generate";
         btn.disabled = false;
     }
 }
@@ -738,10 +760,10 @@ window.generateShootingPrompt = async function(fullCode) {
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
-    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; height:250px; padding:10px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:4px; margin-top:10px;">${currentText}</textarea>
-    <div style="margin-top:10px; display:flex; gap:10px;">
-        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;">💾 Save Edit</button>
-        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;">✖ Cancel</button>
+    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; height:250px; padding:12px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
+        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
     </div>`;
     document.getElementById(`edit-prompt-btn-${code}`).style.display = 'none';
 };
@@ -825,15 +847,12 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// GỘP CẢ HAI NỘI DUNG KHI COPY
+// LOGIC MỚI: CHỈ COPY SCRIPT THÔ, BỎ QUA PROMPT QUAY VIDEO
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
     
-    let contentToCopy = cacheData.rawScript;
-    if (cacheData.shootingPrompt) {
-        contentToCopy += '\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n' + cacheData.shootingPrompt;
-    }
+    const contentToCopy = cacheData.rawScript; // Chỉ copy kịch bản gốc
     
     const cleanedScript = contentToCopy
         .split('\n')
@@ -844,7 +863,7 @@ window.copyScript = function(fullCode) {
         const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
         if (copyBtn) {
             copyBtn.innerText = '✅ Copied!';
-            setTimeout(() => { copyBtn.innerText = '📋 Copy'; }, 2000);
+            setTimeout(() => { copyBtn.innerText = '📋 Copy Script'; }, 2000);
         }
     }).catch(() => {
         const ta = document.createElement('textarea');
@@ -855,7 +874,6 @@ window.copyScript = function(fullCode) {
         document.body.removeChild(ta);
     });
 };
-
 
 // ==========================================
 // TÍNH NĂNG MỚI: CLOUD SCRIPT STORE CÓ FAVORITES
@@ -1022,7 +1040,7 @@ window.toggleFavorite = async function(id) {
     }
 }
 
-// LƯU KỊCH BẢN VÀ GỘP TEXT
+// LƯU KỊCH BẢN VÀ GỘP TEXT VÀO STORE
 window.saveScript = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -1099,7 +1117,7 @@ window.downloadText = function(code, content) {
     window.URL.revokeObjectURL(url);
 }
 
-// CÁC HÀM GỌI AI NHƯ CŨ
+// CÁC HÀM GỌI AI NHƯ CŨ VÀ RENDER GIAO DIỆN MỚI
 async function generateAIScript(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
@@ -1152,22 +1170,22 @@ async function generateAIScript(fullCode, btn) {
         const badgesHtml = badges.join('');
         const rawScriptText = data.script;
 
-        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" style="background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,.1);">🖼️ Scene Image</button>`;
-        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" style="background:#f59e0b;color:white;border:1px solid #d97706;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;box-shadow:0 1px 2px rgba(0,0,0,.05);">🎬 Prompt</button>`;
-        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">📋 Copy</button>`;
-        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;">💾 Save</button>`;
+        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" class="modern-action-btn btn-scene">🖼️ Scene Image</button>`;
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
 
         const scriptHtml = `
-            <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;gap:8px;flex-wrap:wrap;">
-                <div><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
-                <div style="display:flex;gap:8px;align-items:center;">
+            <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size:14px; color:#1e293b;"><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
+                <div style="display:flex;gap:10px;align-items:center;">
                     ${promptBtnHtml}
                     ${copyBtnHtml}
                     ${saveBtnHtml}
                     ${imgBtnHtml}
                 </div>
             </div>
-            <div style="white-space:pre-wrap;">${data.script}</div>
+            <div style="white-space:pre-wrap; padding:0 8px; font-size:14.5px; color:#334155; line-height:1.7;">${data.script}</div>
         `;
 
         resultBox.innerHTML = scriptHtml;
@@ -1231,7 +1249,7 @@ async function requestSceneImage(fullCode) {
     } catch (err) {
         alert(`❌ Lỗi tạo ảnh: ${err.message}`);
         btn.innerText = "🖼️ Scene Image";
-        btn.style.background = "#2563eb";
+        btn.style.background = "#eff6ff";
         btn.disabled = false;
     }
 }

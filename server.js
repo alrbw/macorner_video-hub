@@ -279,34 +279,34 @@ app.post('/api/generate-script', async (req, res) => {
         let buyer = "The Viewer", receiver = "The Gift Recipient";
         let isSelfGift = insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift") || insightName === "00";
 
-        let giftingContext = "";
-
+        let contextString = "";
         if (isSelfGift) {
-            buyer = "The Viewer";
+            buyer = "The Viewer (purchasing for themselves)";
             receiver = "Themselves";
-            // Ép buộc ngữ cảnh rõ ràng để tránh AI nhận diện tên SP (vd: "Dad Shirt") thành quà tặng người khác
-            giftingContext = `CRITICAL: THIS IS A SELF-GIFT. The speaker bought this product FOR THEMSELVES. Do NOT frame this as buying a gift for someone else. If the product name implies a role (like "Dad", "Mom", "Wife"), the speaker IS that person buying it to celebrate themselves.`;
-            
-            // Khử nhiễu: Đổi tên E2 để AI không bị nhầm lẫn với "Buyer POV" (mua cho người khác)
-            if (e2Name.includes("Buyer POV")) {
-                e2Name = e2Name.replace("Buyer POV", "Self-Purchaser POV");
-            }
+            contextString = `CONTEXT: STRICTLY SELF-GIFTING. The customer is buying this product FOR THEMSELVES as a personal treat or reward. They are NOT buying it for someone else. 
+CRITICAL RULE: Even if the Product Name implies a recipient (like 'Dad', 'Mom', 'Wife'), you MUST assume the buyer IS that specific person buying it for their own use (e.g., a Dad buying a 'Best Dad' shirt for himself because he deserves it). You MUST force every single element of the script to fit this 'treating myself' narrative.`;
         } else {
             let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
             if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
             else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-            giftingContext = `The buyer is ${buyer}. The recipient is ${receiver}.`;
+            contextString = `CONTEXT: GIFTING. The buyer is ${buyer}. The recipient is ${receiver}.`;
         }
 
         let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
         let e2Check = String(e2Group + " " + e2Name).toLowerCase();
         
         if (isSelfGift) {
-            povInstruction = `SELF-PURCHASER POV (First-person): You are a customer who bought this item as a treat for YOURSELF. Use 'I', 'my'. Talk about treating yourself, why you deserved it or needed it. ABSOLUTELY DO NOT mention buying this for someone else (no dad, no mom, etc.).`;
-        } else if (e2Check.includes("buyer")) {
-            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-        } else if (e2Check.includes("receiver")) {
-            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+            if (e2Check.includes("store owner") || e2Check.includes("brand")) {
+                povInstruction = `STORE OWNER / BRAND POV: Speak as the seller. Encourage the viewer to treat themselves, reward themselves, and buy this for their own enjoyment. Use 'we' or 'our'. DO NOT talk about gifting it to others.`;
+            } else {
+                povInstruction = `SELF-PURCHASER POV (First-person): You are a regular customer who bought this item FOR YOURSELF. Use 'I', 'my', 'me'. Talk about why you decided to treat yourself, your personal experience using it, and your excitement. ABSOLUTELY NEVER mention buying it as a gift for a dad, mom, partner, or anyone else.`;
+            }
+        } else {
+            if (e2Check.includes("buyer")) {
+                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience buying it, why you chose it for them, and your excitement. NEVER sound like a seller or brand.`;
+            } else if (e2Check.includes("receiver")) {
+                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+            }
         }
 
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
@@ -327,17 +327,17 @@ app.post('/api/generate-script', async (req, res) => {
         const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
         const textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
+You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce products.
 
 TARGET DURATION: 20 to 25 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
-GIFTING CONTEXT: ${giftingContext}
+${contextString}
 
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
 === CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
-To make this content authentic, you MUST strictly follow the assigned Point of View (POV) and Tone below. DO NOT default to a standard "marketer/sales" voice unless explicitly instructed to be the Store Owner.
+To make this content authentic, you MUST strictly follow the assigned Point of View (POV) and Tone below.
 
 1. POINT OF VIEW (POV): ${povInstruction}
 2. TONE OF VOICE: ${toneInstruction} -> IMPORTANT: The tone must be 100% consistent from the very first word of the hook to the final call-to-action.
@@ -347,15 +347,15 @@ You must structure the script based on the following requested elements. Execute
 
 1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
    ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence to grab attention in your assigned tone.
+   -> Rule: Execute this specific type of hook perfectly in the first sentence. CRITICAL: If the context is SELF-GIFTING, the hook MUST be about the viewer's own needs, personal struggles, or desires to treat themselves. DO NOT mention searching for a gift for someone else.
 
 2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
    ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle and your strictly assigned POV. Ensure it connects logically with the Hook.
+   -> Rule: Showcase the product following this exact storyline angle and your strictly assigned POV.
 
 3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
    ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. If it implies "No CTA" or "No specific action", end naturally without asking for anything. Ensure the CTA fits your assigned POV (e.g., a buyer doesn't say "link in bio", they say "you have to get this for them").
+   -> Rule: End the script following this exact CTA intent. CRITICAL: If the context is SELF-GIFTING, the CTA MUST urge the viewer to treat themselves or buy it for their own use, NOT for a loved one.
 
 ADDITIONAL CONTEXT FOR ELEMENTS:
 ${elementsContext}

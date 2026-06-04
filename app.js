@@ -747,13 +747,8 @@ window.generateShootingPrompt = async function(fullCode) {
         if (data.error) throw new Error(data.error);
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
-        const copyBtn = `<button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>`;
-        const editBtn = `<button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>`;
         
-        resultBox.innerHTML = `
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">${editBtn}${copyBtn}</div>
-            <div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>
-        `;
+        resultBox.innerHTML = `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>`;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -772,7 +767,6 @@ window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
     
-    // Gỡ class View để xóa giới hạn chiều cao
     textDiv.classList.remove('prompt-view-box');
     
     textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
@@ -789,7 +783,6 @@ window.savePromptEdit = function(code) {
     const newText = textarea.value;
     const textDiv = document.getElementById(`prompt-text-${code}`);
     
-    // Xóa textarea và phục hồi class View
     textDiv.innerHTML = '';
     textDiv.classList.add('prompt-view-box');
     textDiv.innerText = newText; 
@@ -809,7 +802,6 @@ window.cancelPromptEdit = function(code) {
     const originalText = cacheData ? cacheData.shootingPrompt : '';
     const textDiv = document.getElementById(`prompt-text-${code}`);
     
-    // Xóa textarea và phục hồi class View
     textDiv.innerHTML = '';
     textDiv.classList.add('prompt-view-box');
     textDiv.innerText = originalText;
@@ -1133,4 +1125,182 @@ window.downloadText = function(code, content) {
     a.download = `${code}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
+}
+
+async function generateAIScript(fullCode, btn) {
+    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
+    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
+
+    const row = document.getElementById(`ai-row-${fullCode}`);
+    const resultBox = document.getElementById(`ai-result-${fullCode}`);
+    const toggleBtn = document.getElementById(`toggle-btn-${fullCode}`);
+
+    row.style.display = 'table-row';
+    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
+    btn.disabled = true;
+
+    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
+    resultBox.innerHTML = processText;
+
+    try {
+        const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
+        const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
+        
+        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
+        
+        const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
+        const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
+
+        const eData = { 
+            e1: { name: getName(iE1), exp: iE1?.Explanation || '' },
+            e2: { name: getName(iE2), exp: iE2?.Explanation || '', group: iE2?.Group || '' },
+            e3: { name: getName(iE3), exp: iE3?.Explanation || '' },
+            e4: { name: getName(iE4), exp: iE4?.Explanation || '' }, 
+            e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/generate-script`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fullCode, niche: CURRENT_NICHE, productBase,
+                scrapedData: GLOBAL_SCRAPED_DATA,
+                imageUrl: GLOBAL_IMAGE_URL,
+                spentCodes, eData
+            })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        let badges = [];
+        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
+
+        const badgesHtml = badges.join('');
+        const rawScriptText = data.script;
+
+        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" class="modern-action-btn btn-scene">🖼️ Scene Image</button>`;
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
+
+        const scriptHtml = `
+            <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size:14px; color:#1e293b;"><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    ${promptBtnHtml}
+                    ${copyBtnHtml}
+                    ${saveBtnHtml}
+                    ${imgBtnHtml}
+                </div>
+            </div>
+            <div style="white-space:pre-wrap; padding:0 8px; font-size:14.5px; color:#334155; line-height:1.7;">${data.script}</div>
+        `;
+
+        resultBox.innerHTML = scriptHtml;
+        AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
+        saveStateToCache(); 
+        
+        renderReviewView();
+
+    } catch (err) {
+        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "✨ Redo";
+    }
+}
+
+async function requestSceneImage(fullCode) {
+    const btn = document.getElementById(`img-btn-${fullCode}`);
+    if (!btn) return;
+
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
+
+    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
+    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
+
+    btn.innerText = "⏳ Generating (~15s)...";
+    btn.disabled = true;
+    btn.style.background = "#94a3b8";
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/generate-scene-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fullCode: fullCode,
+                script: cacheData.rawScript,
+                productBase: productBase,
+                scrapedData: GLOBAL_SCRAPED_DATA,
+                imageUrl: GLOBAL_IMAGE_URL
+            })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        window.SCENE_GALLERY.push({
+            fullCode: fullCode,
+            imageUrl: data.imageUrl,
+            script: cacheData.rawScript,
+            productBase: productBase
+        });
+
+        saveGallery();
+        saveStateToCache();
+
+        alert("✅ Image generated successfully! Check the 'Scene Gallery' tab.");
+        btn.innerText = "✅ Saved to Gallery";
+        btn.style.background = "#10b981";
+
+    } catch (err) {
+        alert(`❌ Lỗi tạo ảnh: ${err.message}`);
+        btn.innerText = "🖼️ Scene Image";
+        btn.style.background = "#eff6ff";
+        btn.disabled = false;
+    }
+}
+
+function renderGalleryView() {
+    const container = document.getElementById('gallery-container');
+    if (!container) return;
+
+    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
+        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images generated yet. Go to Selection Review to generate some!</div>`;
+        return;
+    }
+
+    let html = '';
+    const reversed = [...window.SCENE_GALLERY].reverse();
+
+    reversed.forEach((data, index) => {
+        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
+
+        html += `
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+                <div style="width: 100%; aspect-ratio: 9 / 16; background: #f8fafc; overflow: hidden;">
+                    <a href="${data.imageUrl}" target="_blank">
+                        <img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy">
+                    </a>
+                </div>
+                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
+                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
+                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Content</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function showScriptModal(index) {
+    const data = window.SCENE_GALLERY[index];
+    if (!data) return;
+    const content = document.getElementById('script-modal-content');
+    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
+    document.getElementById('script-modal').style.display = 'flex';
 }

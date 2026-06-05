@@ -626,7 +626,6 @@ function renderReviewView() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
-            // Xử lý logic hiển thị nút video dựa trên cache state
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
             let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
@@ -716,6 +715,89 @@ window.togglePromptForm = function(fullCode) {
     }
 }
 
+// Gọi API Generate Script (Gộp lại cho đủ)
+async function generateAIScript(fullCode, btn) {
+    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
+    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
+
+    const row = document.getElementById(`ai-row-${fullCode}`);
+    const resultBox = document.getElementById(`ai-result-${fullCode}`);
+    const toggleBtn = document.getElementById(`toggle-btn-${fullCode}`);
+
+    row.style.display = 'table-row';
+    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
+    btn.disabled = true;
+
+    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
+    resultBox.innerHTML = processText;
+
+    try {
+        const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
+        const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
+        
+        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
+        
+        const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
+        const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
+
+        const eData = { 
+            e1: { name: getName(iE1), exp: iE1?.Explanation || '' },
+            e2: { name: getName(iE2), exp: iE2?.Explanation || '', group: iE2?.Group || '' },
+            e3: { name: getName(iE3), exp: iE3?.Explanation || '' },
+            e4: { name: getName(iE4), exp: iE4?.Explanation || '' }, 
+            e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/generate-script`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fullCode, niche: CURRENT_NICHE, productBase,
+                scrapedData: GLOBAL_SCRAPED_DATA,
+                imageUrl: GLOBAL_IMAGE_URL,
+                spentCodes, eData
+            })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        let badges = [];
+        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
+
+        const badgesHtml = badges.join('');
+        const rawScriptText = data.script;
+
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
+
+        const scriptHtml = `
+            <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size:14px; color:#1e293b;"><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    ${promptBtnHtml}
+                    ${copyBtnHtml}
+                    ${saveBtnHtml}
+                </div>
+            </div>
+            <div style="white-space:pre-wrap; padding:0 8px; font-size:14.5px; color:#334155; line-height:1.7;">${data.script}</div>
+        `;
+
+        resultBox.innerHTML = scriptHtml;
+        AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
+        saveStateToCache(); 
+        
+        renderReviewView();
+
+    } catch (err) {
+        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "✨ Redo";
+    }
+}
+
 window.generateShootingPrompt = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
@@ -766,7 +848,6 @@ window.generateShootingPrompt = async function(fullCode) {
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
-        // Đặt lại state video nếu tạo prompt mới
         cacheData.videoGenStatus = '';
         cacheData.videoGenTime = 0;
         
@@ -831,21 +912,15 @@ window.cancelPromptEdit = function(code) {
     if (actionWrapper) actionWrapper.style.display = 'flex';
 };
 
-// =====================================================================
-// LUỒNG MỚI: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
-// =====================================================================
-
 window.generateVideo = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     AI_CACHE.set(fullCode, cacheData);
     saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -870,7 +945,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -878,7 +952,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -936,7 +1009,7 @@ window.generateVideo = async function(fullCode) {
                 alert(`❌ Lỗi kiểm tra video mã [${fullCode}]: ${pollErr.message}`);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 AI_CACHE.set(fullCode, cData);

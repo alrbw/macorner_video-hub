@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout, Background Video Gen)
+ * FULL AUTO V60 (Original Base + Edit Prompt + UI Fixed Box + Seedance Video)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -54,6 +54,7 @@ window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
 
+// LINK SERVER KOYEB CỦA BẠN
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 try {
@@ -121,7 +122,7 @@ function switchView(view) {
 
     if (view === 'review') renderReviewView();
     if (view === 'gallery') renderGalleryView(); 
-    if (view === 'store') window.renderStore(); 
+    if (view === 'store') window.renderStore(); // Tự động cập nhật Cloud Store
 }
 
 function extractNiche(adName) {
@@ -283,6 +284,7 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
+// BẢNG E2/E4 CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
@@ -624,8 +626,7 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
-            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
-            
+            // Xử lý logic nút render trạng thái video theo Cache
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
             let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
@@ -636,10 +637,12 @@ function renderReviewView() {
                 videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;">✅ Video Ready!</button>`;
             }
 
+            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+            
             const ugcPromptResultContent = ugcPromptResult ? `
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
-                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px;">✏️ Edit</button>
+                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px;">📋 Copy Prompt</button>
                     ${videoBtnHtml}
                 </div>
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
@@ -649,8 +652,8 @@ function renderReviewView() {
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
                     <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;">🎬 Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
-                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s, tự mua quà cho con gái)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
-                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
+                        <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box;" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
+                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px;">✨ Generate</button>
                     </div>
                     <div id="prompt-result-${code}" style="display: ${promptResultDisplay};">${ugcPromptResultContent}</div>
                 </div>
@@ -715,8 +718,8 @@ window.togglePromptForm = function(fullCode) {
     }
 }
 
-// Gọi API Generate Script (Gộp lại cho đủ)
-async function generateAIScript(fullCode, btn) {
+// KHÔI PHỤC ĐẦY ĐỦ HÀM GỌI KỊCH BẢN (SCRIPT GENERATION)
+window.generateAIScript = async function(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
 
@@ -798,6 +801,7 @@ async function generateAIScript(fullCode, btn) {
     }
 }
 
+// KHÔI PHỤC ĐẦY ĐỦ HÀM TẠO PROMPT QUAY VIDEO
 window.generateShootingPrompt = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
@@ -839,15 +843,16 @@ window.generateShootingPrompt = async function(fullCode) {
         
         resultBox.innerHTML = `
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
-                <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
-                <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>
+                <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px;">✏️ Edit</button>
+                <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px;">📋 Copy Prompt</button>
+                <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px;">🎥 Generate Video</button>
             </div>
             <div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>
         `;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
+        // Đặt lại state video nếu tạo prompt mới
         cacheData.videoGenStatus = '';
         cacheData.videoGenTime = 0;
         
@@ -861,6 +866,7 @@ window.generateShootingPrompt = async function(fullCode) {
     }
 }
 
+// LOGIC CHỈNH SỬA PROMPT TRỰC TIẾP TRÊN UI
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
@@ -873,8 +879,8 @@ window.editPrompt = function(code) {
     textDiv.innerHTML = `
     <textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
+        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">💾 Save Edit</button>
     </div>`;
 };
 
@@ -912,15 +918,21 @@ window.cancelPromptEdit = function(code) {
     if (actionWrapper) actionWrapper.style.display = 'flex';
 };
 
+// =====================================================================
+// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
+// =====================================================================
+
 window.generateVideo = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
+    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     AI_CACHE.set(fullCode, cacheData);
     saveStateToCache();
 
+    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -945,6 +957,7 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
+        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -952,6 +965,7 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             AI_CACHE.set(fullCode, cData);
             
+            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -1006,10 +1020,10 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
-                alert(`❌ Lỗi kiểm tra video mã [${fullCode}]: ${pollErr.message}`);
+                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { 
+            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 AI_CACHE.set(fullCode, cData);
@@ -1042,49 +1056,9 @@ window.generateVideo = async function(fullCode) {
     }
 };
 
-function renderGalleryView() {
-    const container = document.getElementById('gallery-container');
-    if (!container) return;
-
-    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
-        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images/videos generated yet. Go to Selection Review to generate some!</div>`;
-        return;
-    }
-
-    let html = '';
-    const reversed = [...window.SCENE_GALLERY].reverse();
-
-    reversed.forEach((data, index) => {
-        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
-        
-        const mediaHtml = data.videoUrl
-            ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: cover;" poster="${data.imageUrl || ''}"></video>`
-            : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
-
-        html += `
-            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
-                <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
-                    ${mediaHtml}
-                </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-function showScriptModal(index) {
-    const data = window.SCENE_GALLERY[index];
-    if (!data) return;
-    const content = document.getElementById('script-modal-content');
-    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
-    document.getElementById('script-modal').style.display = 'flex';
-}
+// =====================================================================
+// TOOLTIP & EVENT LISTENERS
+// =====================================================================
 
 function adjustTooltip(e, tooltip) {
     const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
@@ -1137,3 +1111,316 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.code-box')) document.getElementById('tooltip').style.display = 'none';
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
+
+// GỘP CHỨC NĂNG COPY SCRIPT THÔ
+window.copyScript = function(fullCode) {
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return;
+    
+    const contentToCopy = cacheData.rawScript; 
+    
+    const cleanedScript = contentToCopy
+        .split('\n')
+        .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
+        .join('\n');
+
+    navigator.clipboard.writeText(cleanedScript).then(() => {
+        const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
+        if (copyBtn) {
+            copyBtn.innerText = '✅ Copied!';
+            setTimeout(() => { copyBtn.innerText = '📋 Copy Script'; }, 2000);
+        }
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = cleanedScript;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    });
+};
+
+// ==========================================
+// STORE DATA & LARK BASE
+// ==========================================
+window.STORE_DATA_CACHE = [];
+
+window.buildStoreUI = function() {
+    const storePane = document.getElementById('view-store');
+    if (!storePane) return; 
+
+    let listContainer = document.getElementById('store-container-wrap');
+    if (!listContainer) {
+        storePane.innerHTML = `
+            <header class="top-nav">
+                <h2>Cloud Script Store</h2>
+                <button class="btn-danger" onclick="window.clearStore()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All</button>
+            </header>
+            <section class="card" id="store-container-wrap">
+                <div id="store-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+                    <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="code">By code A–Z</option>
+                    </select>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px; font-weight:bold; color:#d97706; background:#fef3c7; padding:6px 12px; border-radius:6px; border:1px solid #fde68a;">
+                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c;">
+                        ⭐ Favorites Only
+                    </label>
+                </div>
+                <div id="store-count" style="font-size:13px; color:#64748b; margin-bottom:12px;"></div>
+                <div id="store-list" style="min-height: 100px;"></div>
+                <div id="store-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none;">No scripts saved yet.</div>
+            </section>
+        `;
+    }
+};
+
+window.renderStore = async function() {
+    window.buildStoreUI();
+    const listDiv = document.getElementById('store-list');
+    if(!listDiv) return;
+
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
+        let store = await res.json();
+        window.STORE_DATA_CACHE = store;
+        window.currentStoreFilter = 'all'; 
+        window.updateStoreUI();
+    } catch (e) {
+        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
+    }
+}
+
+window.updateStoreUI = function() {
+    const listDiv = document.getElementById('store-list');
+    const emptyDiv = document.getElementById('store-empty');
+    const countDiv = document.getElementById('store-count');
+    
+    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
+    const sortVal = document.getElementById('store-sort')?.value || "newest";
+    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
+
+    if(!listDiv) return;
+
+    let filtered = window.STORE_DATA_CACHE.filter(s => {
+        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
+        if (isFavOnly && !s.isFavorite) return false;
+        
+        return s.code.toLowerCase().includes(searchVal) || 
+               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
+               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
+    });
+
+    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
+    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) FOUND ON CLOUD`;
+
+    if (filtered.length === 0) {
+        listDiv.innerHTML = '';
+        if(emptyDiv) emptyDiv.style.display = 'block';
+        return;
+    }
+
+    if(emptyDiv) emptyDiv.style.display = 'none';
+
+    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
+    window.STORE_DATA_CACHE.forEach(s => {
+        const tc = s.targetCode || 'OTHER';
+        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+    });
+
+    let sidebarHtml = `<div style="min-width: 140px; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; gap: 8px;">
+            <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+                ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
+            </div>`;
+
+    Object.keys(groupCounts).forEach(tc => {
+        if (tc === 'ALL') return;
+        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+        sidebarHtml += `
+            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #ffedd5; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            </div>
+        `;
+    });
+    sidebarHtml += `</div>`;
+
+    let cardsHtml = `<div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">`;
+    
+    filtered.forEach(s => {
+        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const dateStr = new Date(s.date).toLocaleString();
+        
+        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
+        const starFill = s.isFavorite ? '★' : '☆';
+        
+        cardsHtml += `
+            <div style="background:#fff; border:1px solid ${s.isFavorite ? '#fde68a' : '#e2e8f0'}; border-radius:8px; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;">
+                <div style="position:absolute; top:15px; left:15px;">
+                    <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:24px; color:${starColor}; padding:0; line-height:1; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${starFill}</button>
+                </div>
+                <div style="margin-left: 35px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                                <span style="font-size:16px; font-weight:800; color:#ea580c;">${s.code}</span>
+                                <span style="font-size:11px; background:#fff7ed; padding:3px 8px; border-radius:12px; color:#c2410c; border: 1px solid #ffedd5; font-weight: bold;">${s.productBase}</span>
+                            </div>
+                            <div style="font-size:12px; color:#94a3b8; font-weight:500;">
+                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#475569;">📋 Copy</button>
+                            <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#166534;">⬇ Download</button>
+                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;" title="Xóa khỏi Server">🗑️</button>
+                        </div>
+                    </div>
+                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
+                </div>
+            </div>
+        `;
+    });
+    cardsHtml += `</div>`;
+
+    listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
+}
+
+window.toggleFavorite = async function(id) {
+    try {
+        const item = window.STORE_DATA_CACHE.find(s => s.id === id);
+        if(item) {
+            item.isFavorite = !item.isFavorite;
+            window.updateStoreUI();
+        }
+        await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
+    } catch(e) {
+        alert("Lỗi khi cập nhật Cloud!");
+    }
+}
+
+window.saveScript = async function(fullCode) {
+    const cacheData = AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return;
+    
+    const productBase = GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
+    let finalContent = cacheData.rawScript;
+    
+    if (cacheData.shootingPrompt) {
+        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
+    }
+
+    const btn = document.getElementById(`save-btn-${fullCode}`);
+    if (btn) {
+        btn.innerText = "⏳ Saving...";
+        btn.disabled = true;
+    }
+
+    try {
+        const payload = {
+            code: fullCode,
+            productBase: productBase,
+            targetCode: GLOBAL_TARGET_CODE || fullCode,
+            content: finalContent
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Failed to save");
+        
+        if (btn) {
+            btn.innerText = "✅ Saved!";
+            setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
+        }
+        
+        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
+            window.renderStore();
+        }
+    } catch (e) {
+        console.error("Lỗi:", e);
+        alert("Có lỗi khi lưu lên Cloud. Vui lòng thử lại!");
+        if (btn) { btn.innerText = "💾 Save"; btn.disabled = false; }
+    }
+};
+
+window.deleteScript = async function(id) {
+    if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;
+    try {
+        window.STORE_DATA_CACHE = window.STORE_DATA_CACHE.filter(s => s.id !== id);
+        window.updateStoreUI();
+        await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
+    } catch(e) { alert("Lỗi khi xóa!"); }
+}
+
+window.clearStore = async function() {
+    if(!confirm("⚠️ CẢNH BÁO: Xóa TẤT CẢ kịch bản? Dữ liệu toàn cầu sẽ biến mất!")) return;
+    try {
+        window.STORE_DATA_CACHE = [];
+        window.updateStoreUI();
+        await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
+    } catch(e) { alert("Lỗi khi xóa!"); }
+}
+
+window.downloadText = function(code, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${code}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function renderGalleryView() {
+    const container = document.getElementById('gallery-container');
+    if (!container) return;
+
+    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
+        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images/videos generated yet. Go to Selection Review to generate some!</div>`;
+        return;
+    }
+
+    let html = '';
+    const reversed = [...window.SCENE_GALLERY].reverse();
+
+    reversed.forEach((data, index) => {
+        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
+        
+        const mediaHtml = data.videoUrl
+            ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: cover;" poster="${data.imageUrl || ''}"></video>`
+            : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
+
+        html += `
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+                <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+                    ${mediaHtml}
+                </div>
+                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
+                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
+                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function showScriptModal(index) {
+    const data = window.SCENE_GALLERY[index];
+    if (!data) return;
+    const content = document.getElementById('script-modal-content');
+    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333; white-space:pre-wrap;">${data.script}</div>`;
+    document.getElementById('script-modal').style.display = 'flex';
+}

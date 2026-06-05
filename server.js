@@ -150,7 +150,7 @@ app.delete('/api/store', async (req, res) => {
 });
 
 // =====================================================================
-// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT BẰNG OPENAI
+// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT
 // =====================================================================
 
 app.post('/api/analyze-link', async (req, res) => {
@@ -312,7 +312,6 @@ app.post('/api/generate-script', async (req, res) => {
         let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
         let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        const e4 = fullCode.substring(6, 8);
         let insightName = String(e4Name);
         let buyer = "The Viewer";
         let receiver = "The Gift Recipient";
@@ -340,6 +339,7 @@ app.post('/api/generate-script', async (req, res) => {
 
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
+        
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
             toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
         } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
@@ -494,7 +494,7 @@ ${script}`;
 
 
 // =====================================================================
-// API KẾT NỐI BYTEPLUS SEEDANCE ĐỂ TẠO VIDEO (CÓ THIẾT LẬP RATIO 9:16)
+// LUỒNG MỚI: KẾT NỐI BYTEPLUS API (SEEDANCE) ĐỂ TẠO VIDEO
 // =====================================================================
 
 app.post('/api/generate-video', async (req, res) => {
@@ -502,6 +502,7 @@ app.post('/api/generate-video', async (req, res) => {
         const { prompt, imageUrl } = req.body;
         if (!prompt) return res.status(400).json({ error: "Missing prompt data" });
 
+        // Cấu trúc payload theo chuẩn BytePlus Seedance
         const content = [
             { type: "text", text: prompt }
         ];
@@ -518,8 +519,7 @@ app.post('/api/generate-video', async (req, res) => {
             model: "dreamina-seedance-2-0-260128",
             content: content,
             generate_audio: true,
-            ratio: "9:16", // Ép buộc tỷ lệ khung hình video dọc
-            resolution: "720p", // Khai báo thêm độ phân giải 720p
+            ratio: "9:16", 
             duration: 11, 
             watermark: false
         };
@@ -532,7 +532,6 @@ app.post('/api/generate-video', async (req, res) => {
         });
 
         if (response.data && response.data.id) {
-            console.log(`[BytePlus] Tạo Task thành công. Task ID: ${response.data.id}`);
             res.json({ taskId: response.data.id });
         } else {
             throw new Error("Failed to create BytePlus task: " + JSON.stringify(response.data));
@@ -543,7 +542,6 @@ app.post('/api/generate-video', async (req, res) => {
     }
 });
 
-// Hàm kiểm tra và trích xuất siêu mạnh đường link video từ BytePlus
 app.get('/api/check-video/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
@@ -560,64 +558,21 @@ app.get('/api/check-video/:taskId', async (req, res) => {
 
         if (status === "succeeded") {
             let videoUrl = "";
-            
-            // In thẳng cấu trúc phản hồi của BytePlus ra màn hình log Koyeb để kiểm tra cấu trúc
-            console.log(`\n--- [BytePlus Success Payload] Task ${taskId} ---`);
-            console.log(JSON.stringify(task, null, 2));
-            console.log(`-------------------------------------------\n`);
-
-            // Màng lọc bóc tách Video URL thông minh
-            try {
-                const rawContent = task.content;
-                
-                // Trường hợp 1: Content là một mảng Array
-                if (Array.isArray(rawContent)) {
-                    for (let item of rawContent) {
-                        if (item.type === 'video_url' && item.video_url) {
-                            videoUrl = typeof item.video_url === 'string' ? item.video_url : item.video_url.url;
-                            break;
-                        } else if (item.video_url) {
-                            videoUrl = typeof item.video_url === 'string' ? item.video_url : item.video_url.url;
-                            break;
-                        }
-                    }
-                } 
-                // Trường hợp 2: Content là một Object (JSON object)
-                else if (rawContent && typeof rawContent === 'object') {
-                    if (rawContent.video_url) {
-                        videoUrl = typeof rawContent.video_url === 'string' ? rawContent.video_url : rawContent.video_url.url;
-                    }
+            // Fix parsing: BytePlus returns video_url inside the content object
+            if (task.content && typeof task.content.video_url === 'string') {
+                videoUrl = task.content.video_url;
+            } else if (task.video_url) {
+                videoUrl = task.video_url;
+            } else if (Array.isArray(task.content)) {
+                const vidObj = task.content.find(c => c.type === 'video_url' || c.video_url);
+                if (vidObj) {
+                    videoUrl = vidObj.video_url?.url || vidObj.url || "";
                 }
-                
-                // Trường hợp 3: URL nằm thẳng ở ngoài cùng (Fallbacks)
-                if (!videoUrl && task.video_url) {
-                    videoUrl = typeof task.video_url === 'string' ? task.video_url : task.video_url.url;
-                }
-                
-                // Trường hợp 4: Kết quả trả về qua nhánh 'choices'
-                if (!videoUrl && task.choices && Array.isArray(task.choices)) {
-                    const choiceContent = task.choices[0]?.message?.content;
-                    if (Array.isArray(choiceContent)) {
-                        const vidItem = choiceContent.find(c => c.type === 'video_url');
-                        if (vidItem && vidItem.video_url) {
-                            videoUrl = typeof vidItem.video_url === 'string' ? vidItem.video_url : vidItem.video_url.url;
-                        }
-                    }
-                }
-            } catch(extractError) {
-                console.error("Lỗi trong lúc trích xuất URL video:", extractError);
             }
-
-            // Xử lý đầu ra
-            if (videoUrl) {
-                res.json({ status: "succeeded", videoUrl: videoUrl });
-            } else {
-                res.json({ status: "failed", error: "Tạo thành công nhưng KHÔNG tìm thấy link MP4 trong hệ thống. Vui lòng kiểm tra Log Koyeb." });
-            }
+            res.json({ status: "succeeded", videoUrl: videoUrl });
         } else if (status === "failed") {
-            res.json({ status: "failed", error: task.error?.message || "Hệ thống BytePlus từ chối tạo video này." });
+            res.json({ status: "failed", error: task.error?.message || "Unknown BytePlus Error" });
         } else {
-            // Pending, processing, queued
             res.json({ status: status }); 
         }
 

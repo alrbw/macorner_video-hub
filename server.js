@@ -79,15 +79,8 @@ app.post('/api/store', async (req, res) => {
         const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
         const newRecord = response.data?.data?.record;
         
-        res.json({ 
-            success: true, 
-            item: {
-                id: newRecord?.record_id || Date.now().toString(),
-                ...fields
-            } 
-        });
+        res.json({ success: true, item: { id: newRecord?.record_id || Date.now().toString(), ...fields } });
     } catch(e) {
-        console.error("Lỗi POST Store lên Lark:", e.message);
         res.status(500).json({ error: "Không thể ghi kịch bản lên Lark Base: " + e.message });
     }
 });
@@ -99,17 +92,13 @@ app.patch('/api/store/:id/favorite', async (req, res) => {
         
         const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
         const recordRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const currentFields = recordRes.data?.data?.record?.fields || {};
-        const currentFav = !!currentFields['Is Favorite'];
+        const currentFav = !!recordRes.data?.data?.record?.fields?.['Is Favorite'];
         
         const patchUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
-        await axios.patch(patchUrl, {
-            fields: { "Is Favorite": !currentFav }
-        }, { headers: { 'Authorization': `Bearer ${token}` } });
+        await axios.patch(patchUrl, { fields: { "Is Favorite": !currentFav } }, { headers: { 'Authorization': `Bearer ${token}` } });
         
         res.json({ success: true, isFavorite: !currentFav });
     } catch(e) {
-        console.error("Lỗi PATCH Favorite lên Lark:", e.message);
         res.status(500).json({ error: "Không thể đổi trạng thái yêu thích: " + e.message });
     }
 });
@@ -119,11 +108,9 @@ app.delete('/api/store/:id', async (req, res) => {
         const { id } = req.params;
         const token = await getLarkToken();
         const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
-        
         await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         res.json({ success: true });
     } catch(e) {
-        console.error("Lỗi DELETE đơn kịch bản:", e.message);
         res.status(500).json({ error: "Không thể xóa kịch bản này trên Lark: " + e.message });
     }
 });
@@ -131,7 +118,6 @@ app.delete('/api/store/:id', async (req, res) => {
 app.delete('/api/store', async (req, res) => {
     try {
         const token = await getLarkToken();
-        
         const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
         const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
         const items = recordsRes.data?.data?.items || [];
@@ -141,16 +127,100 @@ app.delete('/api/store', async (req, res) => {
             const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/batch_delete`;
             await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
         }
-        
         res.json({ success: true });
     } catch(e) {
-        console.error("Lỗi DELETE toàn bộ kịch bản:", e.message);
-        res.status(500).json({ error: "Không thể dọn sạch bảng lưu trữ kịch bản trên Lark: " + e.message });
+        res.status(500).json({ error: "Không thể dọn sạch bảng lưu trữ: " + e.message });
     }
 });
 
 // =====================================================================
-// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT
+// CLOUD SCENE GALLERY DỰA TRÊN LARK BASE
+// =====================================================================
+
+app.get('/api/gallery', async (req, res) => {
+    try {
+        if(!process.env.GALLERY_TABLE_ID) return res.json([]);
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records?page_size=500`;
+        
+        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        const gallery = items.map(item => ({
+            id: item.record_id,
+            code: item.fields['Code'] || "",
+            productBase: item.fields['Product Base'] || "",
+            targetCode: item.fields['Target Code'] || "",
+            videoUrl: item.fields['Video URL'] || "",
+            imageUrl: item.fields['Image URL'] || "",
+            prompt: item.fields['Prompt'] || "",
+            date: item.fields['Date'] || new Date().toISOString()
+        }));
+        
+        gallery.sort((a, b) => new Date(b.date) - new Date(a.date));
+        res.json(gallery);
+    } catch(e) {
+        console.error("Lỗi GET Gallery từ Lark:", e.message);
+        res.status(500).json({ error: "Lỗi GET Gallery: " + e.message });
+    }
+});
+
+app.post('/api/gallery', async (req, res) => {
+    try {
+        if(!process.env.GALLERY_TABLE_ID) return res.json({success: true, msg: "Bỏ qua lưu Lark vì thiếu GALLERY_TABLE_ID"});
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records`;
+        
+        const fields = {
+            "Code": req.body.code || req.body.fullCode || "",
+            "Product Base": req.body.productBase || "",
+            "Target Code": req.body.targetCode || "",
+            "Video URL": req.body.videoUrl || "",
+            "Image URL": req.body.imageUrl || "",
+            "Prompt": req.body.prompt || req.body.script || "",
+            "Date": new Date().toISOString()
+        };
+
+        const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
+        res.json({ success: true, item: { id: response.data?.data?.record?.record_id, ...fields } });
+    } catch(e) {
+        console.error("Lỗi POST Gallery lên Lark:", e.message);
+        res.status(500).json({ error: "Lỗi POST Gallery: " + e.message });
+    }
+});
+
+app.delete('/api/gallery/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records/${id}`;
+        await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Không thể xóa Video này trên Lark: " + e.message });
+    }
+});
+
+app.delete('/api/gallery', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records?page_size=500`;
+        const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        if (items.length > 0) {
+            const recordIds = items.map(i => i.record_id);
+            const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records/batch_delete`;
+            await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
+        }
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Không thể dọn sạch Gallery trên Lark: " + e.message });
+    }
+});
+
+// =====================================================================
+// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT & TẠO PROMPT
 // =====================================================================
 
 app.post('/api/analyze-link', async (req, res) => {
@@ -200,11 +270,8 @@ app.post('/api/analyze-link', async (req, res) => {
                 
                 if (!description) {
                     description = $('meta[name="description"]').attr('content') ||
-                        $('meta[property="og:description"]').attr('content') ||
-                        $('.product-description').text() ||
-                        $('#description').text() ||
-                        $('.description').text() ||
-                        '';
+                        $('meta[property="og:description"]').attr('content') || $('.product-description').text() ||
+                        $('#description').text() || $('.description').text() || '';
                 }
 
                 if (!imageUrl) {
@@ -232,7 +299,6 @@ app.post('/api/analyze-link', async (req, res) => {
             if (process.env.PRODUCT_APP_TOKEN && process.env.PRODUCT_TABLE_ID) {
                 const token = await getLarkToken();
                 const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.PRODUCT_APP_TOKEN}/tables/${process.env.PRODUCT_TABLE_ID}/records/search`;
-                
                 const searchRes = await axios.post(larkUrl, {
                     filter: { conjunction: "or", conditions: [{ field_name: "Code/ASIN", operator: "contains", value: [asin] }] }
                 }, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -240,15 +306,12 @@ app.post('/api/analyze-link', async (req, res) => {
                 if (searchRes.data?.data?.items?.length > 0) {
                     const item = searchRes.data.data.items[0].fields;
                     productBase = item['Product Base'] || item['Product'] || ""; 
-                    
                     const recordStr = JSON.stringify(item);
                     const match = recordStr.match(/PR-([A-Z0-9\-]+)/i); 
                     if (match) targetCode = match[1].toUpperCase();
                 }
             }
-        } catch (err) {
-            console.error("Lark API Error:", err.message);
-        }
+        } catch (err) {}
 
         if (!targetCode) {
             const tcMatch = asin.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
@@ -256,19 +319,14 @@ app.post('/api/analyze-link', async (req, res) => {
             if (!targetCode) targetCode = asin.toUpperCase();
         }
 
-        if (!targetCode) {
-            throw new Error(`Không tìm thấy Design Code (chứa PR-) cho dữ liệu: ${asin} trong Lark Base.`);
-        }
+        if (!targetCode) throw new Error(`Không tìm thấy Design Code cho dữ liệu: ${asin} trong Lark.`);
 
         const niche = targetCode.substring(0, 3).toUpperCase();
         let cleanDescription = description.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, 1500);
         let scrapedData = "";
-        if (title || cleanDescription) {
-             scrapedData = `[PRODUCT TITLE]: ${title}\n[DESCRIPTION]: ${cleanDescription}`;
-        }
+        if (title || cleanDescription) scrapedData = `[PRODUCT TITLE]: ${title}\n[DESCRIPTION]: ${cleanDescription}`;
 
         res.json({ targetCode, niche, asin, productBase, scrapedData, imageUrl });
-
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -278,7 +336,6 @@ app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
         const safeNiche = String(niche || '');
-
         const larkToken = await getLarkToken();
         const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
         const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
@@ -290,13 +347,10 @@ app.post('/api/generate-script', async (req, res) => {
         records.forEach(item => {
             const fields = item.fields;
             if (!fields || !fields['Note Edit']) return;
-            
             const code = String(fields['Code'] || fields['Video Code'] || ''); 
             let score = 0;
-            
             if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
             if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
-            
             if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
         });
         scoredNotes.sort((a, b) => b.score - a.score);
@@ -315,27 +369,19 @@ app.post('/api/generate-script', async (req, res) => {
         const e4 = fullCode.substring(6, 8);
         let insightName = String(e4Name);
         
-        // Khai báo sẵn các biến để tránh lỗi "undefined"
+        // Khai báo mặc định an toàn cho mọi luồng (Phòng sập ReferenceError)
         let buyer = "The Viewer";
         let receiver = "The Gift Recipient";
 
-        // Logic định tuyến Self-Gift
         let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
 
-        // Tone Instruction Chung
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
-        if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
-            toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
-        } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
-            toneInstruction = "Controversial, slightly irritating or shocking to drive comments and engagement. Keep the tension high.";
-        } else if (e1Lower.includes("emotional")) {
-            toneInstruction = "Warm, sentimental, and deeply touching. Focus heavily on the emotional bond.";
-        } else if (e1Lower.includes("fact") || e1Lower.includes("proof") || e1Lower.includes("social proof")) {
-            toneInstruction = "Objective, informative, like a genuine user review or stating an interesting fact.";
-        } else if (e1Lower.includes("curiosity")) {
-            toneInstruction = "Mysterious and intriguing. Build suspense from the hook all the way to the end.";
-        }
+        if (e1Lower.includes("funny") || e1Lower.includes("meme")) toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
+        else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) toneInstruction = "Controversial, slightly irritating or shocking to drive comments and engagement. Keep the tension high.";
+        else if (e1Lower.includes("emotional")) toneInstruction = "Warm, sentimental, and deeply touching. Focus heavily on the emotional bond.";
+        else if (e1Lower.includes("fact") || e1Lower.includes("proof") || e1Lower.includes("social proof")) toneInstruction = "Objective, informative, like a genuine user review or stating an interesting fact.";
+        else if (e1Lower.includes("curiosity")) toneInstruction = "Mysterious and intriguing. Build suspense from the hook all the way to the end.";
 
         const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
@@ -347,52 +393,28 @@ app.post('/api/generate-script', async (req, res) => {
         // ==========================================
         if (isSelfGift) {
             systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
-            
             textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts).
-
 TARGET DURATION: 20 to 25 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 
 === WARNING: CRITICAL CONTEXT ===
 The product details below might contain keywords like "gifts for dad", "perfect for grandpa", "for mom", etc. YOU MUST ABSOLUTELY IGNORE THOSE KEYWORDS. 
-The scenario is STRICTLY SELF-PURCHASE. The speaker in the video bought this item purely as a treat or reward for THEMSELVES. 
+The scenario is STRICTLY SELF-PURCHASE. The speaker bought this item purely as a treat for THEMSELVES. 
 
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
-=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
-1. POINT OF VIEW (POV): SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF, how it benefits YOU, or why YOU deserved a treat. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, GRANDPA, WIFE, OR ANYONE ELSE.
-2. TONE OF VOICE: ${toneInstruction} -> Keep this 100% consistent.
+=== CRITICAL INSTRUCTIONS ===
+1. POV: SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, WIFE, OR ANYONE ELSE.
+2. TONE: ${toneInstruction}
 
-=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
-You must structure the script based on the following requested elements. Execute them EXACTLY as described, but ADAPT THEM TO THE SELF-PURCHASE CONTEXT:
-
-1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
-   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence. Frame it around a personal realization, self-care, or treating oneself. NO GIFTING OTHERS.
-
-2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
-   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle. Focus purely on why YOU bought it for YOURSELF and your personal reaction/use.
-
-3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
-   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Encourage the viewer to treat themselves, upgrade their own life, or buy it for their own joy.
-
-ADDITIONAL CONTEXT FOR ELEMENTS:
-${elementsContext}
-
-=== IMAGE GUIDELINES (if an image is provided) ===
-- Describe only general visual attributes: colors, materials, textures, shapes, layout.
-- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-
+=== SCRIPT STRUCTURE ===
+1. HOOK (0:00-0:03): "${e1Name}" - Frame it around treating oneself.
+2. BODY: "${e2Name}" - Showcase the product following this exact storyline. Focus purely on personal reaction.
+3. CTA: "${e5Name}" - Encourage the viewer to treat themselves.
+ADDITIONAL CONTEXT:\n${elementsContext}
 === OUTPUT FORMAT ===
-- Divide the script into short scenes with timestamps.
-- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: [0:00-0:03] Your sentence here.
-- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
-`;
+[0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
         } 
         // ==========================================
         // LUỒNG 2: DÀNH CHO MUA TẶNG QUÀ (BÌNH THƯỜNG)
@@ -401,29 +423,15 @@ ${elementsContext}
             systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
             
             let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { 
-                receiver = match[1].trim(); 
-                buyer = match[2].trim(); 
-            } else { 
-                let fMatch = insightName.match(/for\s+(.*)/i); 
-                if (fMatch) { 
-                    receiver = fMatch[1].trim(); 
-                    buyer = `Anyone buying for ${receiver}`; 
-                } 
-            }
+            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
+            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
 
             let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-            
-            if (e2Check.includes("buyer")) {
-                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-            } else if (e2Check.includes("receiver")) {
-                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-            }
+            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer. Use 'we', 'our'.";
+            if (e2Check.includes("buyer")) povInstruction = `BUYER POV (First-person): You bought this as a gift for ${receiver}. Use 'I', 'my'.`;
+            else if (e2Check.includes("receiver")) povInstruction = `RECEIVER POV (First-person): You received this gift from ${buyer}. Use 'I', 'my'.`;
 
             textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
-
 TARGET DURATION: 20 to 25 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
@@ -431,78 +439,43 @@ GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
-=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
-1. POINT OF VIEW (POV): ${povInstruction}
-2. TONE OF VOICE: ${toneInstruction} -> IMPORTANT: The tone must be 100% consistent from the very first word of the hook to the final call-to-action.
+=== CRITICAL INSTRUCTIONS ===
+1. POV: ${povInstruction}
+2. TONE: ${toneInstruction}
 
-=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
-You must structure the script based on the following requested elements. Execute them EXACTLY as described:
-
-1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
-   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence.
-
-2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
-   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle and POV.
-
-3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
-   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Ensure the CTA fits your assigned POV.
-
-ADDITIONAL CONTEXT FOR ELEMENTS:
-${elementsContext}
-
-=== IMAGE GUIDELINES (if an image is provided) ===
-- Describe only general visual attributes: colors, materials, textures, shapes, layout.
-- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-
+=== SCRIPT STRUCTURE ===
+1. HOOK (0:00-0:03): "${e1Name}"
+2. BODY: "${e2Name}" 
+3. CTA: "${e5Name}"
+ADDITIONAL CONTEXT:\n${elementsContext}
 === OUTPUT FORMAT ===
-- Divide the script into short scenes with timestamps.
-- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: [0:00-0:03] Your sentence here.
-- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
-`;
+[0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
         }
 
         let messagesContent = [{ type: "text", text: textPrompt }];
         let finalImageUsed = false;
-
         if (imageUrl) {
             try {
                 const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 10000 });
                 const base64 = Buffer.from(response.data).toString('base64');
                 const mimeType = response.headers['content-type'] || 'image/jpeg';
-                messagesContent.push({
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" }
-                });
+                messagesContent.push({ type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } });
                 finalImageUsed = true;
             } catch (err) { }
         }
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
-            messages: [
-                { role: "system", content: systemRole },
-                { role: "user", content: messagesContent }
-            ],
+            messages: [{ role: "system", content: systemRole }, { role: "user", content: messagesContent }],
             temperature: 0.4,
             max_tokens: 1000
         });
 
-        let scriptResult = completion.choices[0].message.content;
-        scriptResult = cleanAIScript(scriptResult);
-        const isRefused = scriptResult.length < 200 && (scriptResult.toLowerCase().includes("sorry") || scriptResult.toLowerCase().includes("cannot") || scriptResult.toLowerCase().includes("can't assist"));
-
-        if (isRefused && finalImageUsed) {
-            console.log("⚠️ OpenAI từ chối ảnh do Safety Filter. Đang tự động Fallback dùng chế độ Text-Only...");
+        let scriptResult = cleanAIScript(completion.choices[0].message.content);
+        if (scriptResult.length < 200 && scriptResult.toLowerCase().includes("sorry") && finalImageUsed) {
             const fallbackCompletion = await openai.chat.completions.create({
                 model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemRole },
-                    { role: "user", content: textPrompt }
-                ],
+                messages: [{ role: "system", content: systemRole }, { role: "user", content: textPrompt }],
                 temperature: 0.4,
                 max_tokens: 1000
             });
@@ -512,7 +485,6 @@ ${elementsContext}
 
         res.json({ script: scriptResult, hasImage: finalImageUsed });
     } catch (error) {
-        console.error("API Generate Script Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -520,46 +492,30 @@ ${elementsContext}
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
-        
-        if (!script || !recipientDesc) {
-            return res.status(400).json({ error: "Missing required fields for UGC Prompt." });
-        }
+        if (!script || !recipientDesc) return res.status(400).json({ error: "Missing required fields" });
 
         const systemRole = "You are a UGC content creation expert.";
-        
         const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
-
-Mô tả đối tượng (Character & Setting): Trước khi vào các Scene, hãy viết 1 câu mô tả rõ: nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". Nếu có xuất hiện nhân vật khác thì đối chiếu để tạo nhân vật tương tác phù hợp.
-Bối cảnh (không gian, ánh sáng, trang phục): ĐẶC BIỆT CHÚ Ý ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản hoặc loại sản phẩm có nhắc đến các sở thích/hoạt động đặc thù (như đi đánh Golf, cắm trại, câu cá...) hoặc các dịp lễ hội (4th of July, Halloween, Christmas...), bối cảnh và trang phục PHẢI tương ứng (ví dụ: sân golf/đồ thể thao, đồ trang trí lễ hội...). Nếu không có ngữ cảnh đặc biệt, hãy mô tả bối cảnh đời thường quen thuộc của một người Mỹ trung bình.
-Định dạng Scene: Chia thành 5 Scene (từ Scene 1 đến Scene 5). Không kẻ bảng, không chia timeframe.
-Cấu trúc mỗi Scene:
-Action: Mô tả hành động tự nhiên, mang tính đời thường (UGC style), tập trung vào tương tác với sản phẩm và design.
-Dialogue: Lời thoại bằng tiếng Anh, tự nhiên, gần gũi (tự phát triển từ nội dung thô hoặc lấy thoại từ nội dung thô cho sẵn).
-Luồng nội dung: Scene 1 (Hook) -> Scene 2 (Features/Feel) -> Scene 3 (Unique Selling Point/Customization) -> Scene 4 (Emotional Value) -> Scene 5 (Closing).
-
-NỘI DUNG THÔ:
-${script}`;
+Mô tả đối tượng: 1 câu mô tả nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". 
+Bối cảnh (không gian, ánh sáng, trang phục): ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản nhắc đến đánh Golf, cắm trại, câu cá... hoặc dịp lễ, bối cảnh PHẢI tương ứng.
+Định dạng Scene: Chia thành 5 Scene. Action: hành động tự nhiên, UGC style. Dialogue: Lời thoại tiếng Anh.
+NỘI DUNG THÔ:\n${script}`;
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
-            messages: [
-                { role: "system", content: systemRole },
-                { role: "user", content: textPrompt }
-            ],
+            messages: [{ role: "system", content: systemRole }, { role: "user", content: textPrompt }],
             temperature: 0.5,
             max_tokens: 1200
         });
 
         res.json({ prompt: completion.choices[0].message.content.trim() });
     } catch (error) {
-        console.error("API UGC Prompt Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-
 // =====================================================================
-// LUỒNG MỚI: KẾT NỐI BYTEPLUS API (SEEDANCE) ĐỂ TẠO VIDEO
+// KẾT NỐI BYTEPLUS API (SEEDANCE) ĐỂ TẠO VIDEO (CÓ 9:16 & 720p)
 // =====================================================================
 
 app.post('/api/generate-video', async (req, res) => {
@@ -567,24 +523,18 @@ app.post('/api/generate-video', async (req, res) => {
         const { prompt, imageUrl } = req.body;
         if (!prompt) return res.status(400).json({ error: "Missing prompt data" });
 
-        const content = [
-            { type: "text", text: prompt }
-        ];
-
+        const content = [{ type: "text", text: prompt }];
         if (imageUrl) {
-            content.push({
-                type: "image_url",
-                image_url: { url: imageUrl },
-                role: "reference_image"
-            });
+            content.push({ type: "image_url", image_url: { url: imageUrl }, role: "reference_image" });
         }
 
+        // Bỏ duration để kích hoạt Smart length, ép cứng 9:16 và 720p
         const payload = {
             model: "dreamina-seedance-2-0-260128",
             content: content,
             generate_audio: true,
             ratio: "9:16", 
-            duration: 11, 
+            resolution: "720p",
             watermark: false
         };
 
@@ -598,10 +548,9 @@ app.post('/api/generate-video', async (req, res) => {
         if (response.data && response.data.id) {
             res.json({ taskId: response.data.id });
         } else {
-            throw new Error("Failed to create BytePlus task: " + JSON.stringify(response.data));
+            throw new Error("Failed to create BytePlus task.");
         }
     } catch (error) {
-        console.error("BytePlus Create Task Error:", error.response?.data || error.message);
         res.status(500).json({ error: error.response?.data?.error?.message || error.message });
     }
 });
@@ -610,9 +559,7 @@ app.get('/api/check-video/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
         const response = await axios.get(`https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`, {
-            headers: {
-                'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}`
-            }
+            headers: { 'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}` }
         });
 
         const task = response.data;
@@ -628,11 +575,16 @@ app.get('/api/check-video/:taskId', async (req, res) => {
                 videoUrl = task.video_url;
             } else if (Array.isArray(task.content)) {
                 const vidObj = task.content.find(c => c.type === 'video_url' || c.video_url);
-                if (vidObj) {
-                    videoUrl = vidObj.video_url?.url || vidObj.url || "";
-                }
+                if (vidObj) videoUrl = vidObj.video_url?.url || vidObj.url || "";
             }
-            res.json({ status: "succeeded", videoUrl: videoUrl });
+            
+            // Trích xuất usage token
+            let usageTokens = 0;
+            if (task.usage && task.usage.total_tokens) {
+                usageTokens = task.usage.total_tokens;
+            }
+            res.json({ status: "succeeded", videoUrl: videoUrl, usage: usageTokens });
+            
         } else if (status === "failed") {
             res.json({ status: "failed", error: task.error?.message || "Unknown BytePlus Error" });
         } else {
@@ -640,11 +592,9 @@ app.get('/api/check-video/:taskId', async (req, res) => {
         }
 
     } catch (error) {
-        console.error("BytePlus Check Task Error:", error.response?.data || error.message);
         res.status(500).json({ error: error.message });
     }
 });
-
 
 app.get('/', (req, res) => {
     res.status(200).send('Server is running');

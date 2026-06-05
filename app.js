@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout, Video Gen)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -14,18 +14,14 @@ if (!document.getElementById('modern-ui-styles')) {
         .btn-copy:hover { background: #f1f5f9; }
         .btn-save { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
         .btn-save:hover { background: #dcfce7; }
-        .btn-scene { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-        .btn-scene:hover { background: #dbeafe; }
         .prompt-builder-wrapper { margin-top:20px; padding:20px; background:#fffaf5; border-radius:8px; border:1px solid #fed7aa; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.05); transition: all 0.3s ease; }
         
-        /* Box hiển thị Prompt cố định chiều cao */
         .prompt-view-box {
             width: 100%; height: 450px; overflow-y: auto; padding: 15px; 
             font-family: inherit; font-size: 14px; border: 1px solid #cbd5e1; 
             border-radius: 6px; margin-top: 10px; background: #fafaf9; 
             box-sizing: border-box; white-space: pre-wrap; line-height: 1.6;
         }
-        /* Custom scrollbar mượt mà */
         .prompt-view-box::-webkit-scrollbar { width: 6px; }
         .prompt-view-box::-webkit-scrollbar-track { background: transparent; }
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -58,7 +54,6 @@ window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
 
-// LINK SERVER KOYEB CỦA BẠN
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 try {
@@ -632,9 +627,10 @@ function renderReviewView() {
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
             const ugcPromptResultContent = ugcPromptResult ? `
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
                     <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                    <button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>
                 </div>
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
             ` : '';
@@ -748,7 +744,14 @@ window.generateShootingPrompt = async function(fullCode) {
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
         
-        resultBox.innerHTML = `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;"><button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button><button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button></div><div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>`;
+        resultBox.innerHTML = `
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
+                <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
+                <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>
+            </div>
+            <div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>
+        `;
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
@@ -767,14 +770,17 @@ window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
     
+    const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
+    if (actionWrapper) actionWrapper.style.display = 'none';
+    
     textDiv.classList.remove('prompt-view-box');
     
-    textDiv.innerHTML = `<textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; margin-top:10px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
+    textDiv.innerHTML = `
+    <textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
         <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
     </div>`;
-    document.getElementById(`edit-prompt-btn-${code}`).style.display = 'none';
 };
 
 window.savePromptEdit = function(code) {
@@ -793,8 +799,9 @@ window.savePromptEdit = function(code) {
         AI_CACHE.set(code, cacheData);
         saveStateToCache();
     }
-    const editBtn = document.getElementById(`edit-prompt-btn-${code}`);
-    if(editBtn) editBtn.style.display = 'inline-block';
+    
+    const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
+    if (actionWrapper) actionWrapper.style.display = 'flex';
 };
 
 window.cancelPromptEdit = function(code) {
@@ -806,9 +813,145 @@ window.cancelPromptEdit = function(code) {
     textDiv.classList.add('prompt-view-box');
     textDiv.innerText = originalText;
     
-    const editBtn = document.getElementById(`edit-prompt-btn-${code}`);
-    if(editBtn) editBtn.style.display = 'inline-block';
+    const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
+    if (actionWrapper) actionWrapper.style.display = 'flex';
 };
+
+// =====================================================================
+// LUỒNG MỚI: GỌI API BYTEPLUS (SEEDANCE) & CƠ CHẾ POLLING
+// =====================================================================
+
+window.generateVideo = async function(fullCode) {
+    const btn = document.getElementById(`video-btn-${fullCode}`);
+    if (!btn) return;
+
+    const textDiv = document.getElementById(`prompt-text-${fullCode}`);
+    const currentPrompt = textDiv.innerText;
+
+    if (!currentPrompt) return alert("Không tìm thấy Prompt!");
+
+    btn.innerText = "⏳ Requesting...";
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/generate-video`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: currentPrompt,
+                imageUrl: GLOBAL_IMAGE_URL
+            })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (!data.taskId) throw new Error("Không nhận được Task ID từ hệ thống.");
+
+        const taskId = data.taskId;
+        let timeElapsed = 0;
+
+        const pollInterval = setInterval(async () => {
+            timeElapsed += 5;
+            btn.innerText = `⏳ Generating (${timeElapsed}s)...`;
+
+            try {
+                const statusRes = await fetch(`${API_BASE_URL}/api/check-video/${taskId}`);
+                const statusData = await statusRes.json();
+
+                if (statusData.status === 'succeeded' || statusData.status === 'SUCCEEDED') {
+                    clearInterval(pollInterval);
+                    btn.innerText = "✅ Video Ready!";
+                    btn.style.background = "#10b981";
+                    btn.style.color = "white";
+
+                    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
+                    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
+
+                    window.SCENE_GALLERY.push({
+                        fullCode: fullCode,
+                        videoUrl: statusData.videoUrl, 
+                        imageUrl: GLOBAL_IMAGE_URL, // Backup for poster
+                        script: currentPrompt, 
+                        productBase: productBase
+                    });
+
+                    saveGallery();
+                    saveStateToCache();
+                    alert("✅ Tạo video thành công! Vui lòng kiểm tra tab 'Scene Gallery'.");
+                } else if (statusData.status === 'failed' || statusData.status === 'FAILED') {
+                    clearInterval(pollInterval);
+                    throw new Error(statusData.error || "Video generation failed.");
+                }
+            } catch (pollErr) {
+                clearInterval(pollInterval);
+                alert(`❌ Lỗi kiểm tra video: ${pollErr.message}`);
+                btn.innerText = "🎥 Generate Video";
+                btn.disabled = false;
+                btn.style.opacity = "1";
+            }
+
+            if (timeElapsed >= 300) {
+                clearInterval(pollInterval);
+                alert("⏳ Quá thời gian chờ (5 phút). Vui lòng thử lại sau.");
+                btn.innerText = "🎥 Generate Video";
+                btn.disabled = false;
+                btn.style.opacity = "1";
+            }
+        }, 5000);
+
+    } catch (err) {
+        alert(`❌ Lỗi tạo video: ${err.message}`);
+        btn.innerText = "🎥 Generate Video";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+    }
+};
+
+function renderGalleryView() {
+    const container = document.getElementById('gallery-container');
+    if (!container) return;
+
+    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
+        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images/videos generated yet. Go to Selection Review to generate some!</div>`;
+        return;
+    }
+
+    let html = '';
+    const reversed = [...window.SCENE_GALLERY].reverse();
+
+    reversed.forEach((data, index) => {
+        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
+        
+        // Hỗ trợ cả video (mới) và hình ảnh (cũ)
+        const mediaHtml = data.videoUrl
+            ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: cover;" poster="${data.imageUrl || ''}"></video>`
+            : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
+
+        html += `
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+                <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+                    ${mediaHtml}
+                </div>
+                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
+                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
+                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function showScriptModal(index) {
+    const data = window.SCENE_GALLERY[index];
+    if (!data) return;
+    const content = document.getElementById('script-modal-content');
+    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
+    document.getElementById('script-modal').style.display = 'flex';
+}
 
 function adjustTooltip(e, tooltip) {
     const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
@@ -861,446 +1004,3 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.code-box')) document.getElementById('tooltip').style.display = 'none';
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
-
-window.copyScript = function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return;
-    
-    const contentToCopy = cacheData.rawScript; 
-    
-    const cleanedScript = contentToCopy
-        .split('\n')
-        .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
-        .join('\n');
-
-    navigator.clipboard.writeText(cleanedScript).then(() => {
-        const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
-        if (copyBtn) {
-            copyBtn.innerText = '✅ Copied!';
-            setTimeout(() => { copyBtn.innerText = '📋 Copy Script'; }, 2000);
-        }
-    }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = cleanedScript;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-    });
-};
-
-window.STORE_DATA_CACHE = [];
-
-window.buildStoreUI = function() {
-    const storePane = document.getElementById('view-store');
-    if (!storePane) return; 
-
-    let listContainer = document.getElementById('store-container-wrap');
-    if (!listContainer) {
-        storePane.innerHTML = `
-            <header class="top-nav">
-                <h2>Cloud Script Store</h2>
-                <button class="btn-danger" onclick="window.clearStore()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All</button>
-            </header>
-            <section class="card" id="store-container-wrap">
-                <div id="store-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
-                    <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
-                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
-                        <option value="newest">Newest first</option>
-                        <option value="oldest">Oldest first</option>
-                        <option value="code">By code A–Z</option>
-                    </select>
-                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px; font-weight:bold; color:#d97706; background:#fef3c7; padding:6px 12px; border-radius:6px; border:1px solid #fde68a;">
-                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c;">
-                        ⭐ Favorites Only
-                    </label>
-                </div>
-                <div id="store-count" style="font-size:13px; color:#64748b; margin-bottom:12px;"></div>
-                <div id="store-list" style="min-height: 100px;"></div>
-                <div id="store-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none;">No scripts saved yet.</div>
-            </section>
-        `;
-    }
-};
-
-window.renderStore = async function() {
-    window.buildStoreUI();
-    const listDiv = document.getElementById('store-list');
-    if(!listDiv) return;
-
-    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
-    
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
-        let store = await res.json();
-        window.STORE_DATA_CACHE = store;
-        window.currentStoreFilter = 'all'; 
-        window.updateStoreUI();
-    } catch (e) {
-        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
-    }
-}
-
-window.updateStoreUI = function() {
-    const listDiv = document.getElementById('store-list');
-    const emptyDiv = document.getElementById('store-empty');
-    const countDiv = document.getElementById('store-count');
-    
-    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
-    const sortVal = document.getElementById('store-sort')?.value || "newest";
-    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
-
-    if(!listDiv) return;
-
-    let filtered = window.STORE_DATA_CACHE.filter(s => {
-        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        if (isFavOnly && !s.isFavorite) return false;
-        
-        return s.code.toLowerCase().includes(searchVal) || 
-               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
-               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
-    });
-
-    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
-    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
-    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) FOUND ON CLOUD`;
-
-    if (filtered.length === 0) {
-        listDiv.innerHTML = '';
-        if(emptyDiv) emptyDiv.style.display = 'block';
-        return;
-    }
-
-    if(emptyDiv) emptyDiv.style.display = 'none';
-
-    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
-    window.STORE_DATA_CACHE.forEach(s => {
-        const tc = s.targetCode || 'OTHER';
-        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
-    });
-
-    let sidebarHtml = `<div style="min-width: 140px; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; gap: 8px;">
-            <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-                ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
-            </div>`;
-
-    Object.keys(groupCounts).forEach(tc => {
-        if (tc === 'ALL') return;
-        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
-        sidebarHtml += `
-            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #ffedd5; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
-                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
-            </div>
-        `;
-    });
-    sidebarHtml += `</div>`;
-
-    let cardsHtml = `<div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">`;
-    
-    filtered.forEach(s => {
-        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const dateStr = new Date(s.date).toLocaleString();
-        
-        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
-        const starFill = s.isFavorite ? '★' : '☆';
-        
-        cardsHtml += `
-            <div style="background:#fff; border:1px solid ${s.isFavorite ? '#fde68a' : '#e2e8f0'}; border-radius:8px; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;">
-                <div style="position:absolute; top:15px; left:15px;">
-                    <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:24px; color:${starColor}; padding:0; line-height:1; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${starFill}</button>
-                </div>
-                <div style="margin-left: 35px;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                        <div>
-                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                                <span style="font-size:16px; font-weight:800; color:#ea580c;">${s.code}</span>
-                                <span style="font-size:11px; background:#fff7ed; padding:3px 8px; border-radius:12px; color:#c2410c; border: 1px solid #ffedd5; font-weight: bold;">${s.productBase}</span>
-                            </div>
-                            <div style="font-size:12px; color:#94a3b8; font-weight:500;">
-                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:8px;">
-                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#475569;">📋 Copy</button>
-                            <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#166534;">⬇ Download</button>
-                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;" title="Xóa khỏi Server">🗑️</button>
-                        </div>
-                    </div>
-                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
-                </div>
-            </div>
-        `;
-    });
-    cardsHtml += `</div>`;
-
-    listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
-}
-
-window.toggleFavorite = async function(id) {
-    try {
-        const item = window.STORE_DATA_CACHE.find(s => s.id === id);
-        if(item) {
-            item.isFavorite = !item.isFavorite;
-            window.updateStoreUI();
-        }
-        await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
-    } catch(e) {
-        alert("Lỗi khi cập nhật Cloud!");
-    }
-}
-
-window.saveScript = async function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return;
-    
-    const productBase = GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
-    let finalContent = cacheData.rawScript;
-    
-    if (cacheData.shootingPrompt) {
-        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
-    }
-
-    const btn = document.getElementById(`save-btn-${fullCode}`);
-    if (btn) {
-        btn.innerText = "⏳ Saving...";
-        btn.disabled = true;
-    }
-
-    try {
-        const payload = {
-            code: fullCode,
-            productBase: productBase,
-            targetCode: GLOBAL_TARGET_CODE || fullCode,
-            content: finalContent
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/store`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error("Failed to save");
-        
-        if (btn) {
-            btn.innerText = "✅ Saved!";
-            setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
-        }
-        
-        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
-            window.renderStore();
-        }
-    } catch (e) {
-        console.error("Lỗi:", e);
-        alert("Có lỗi khi lưu lên Cloud. Vui lòng thử lại!");
-        if (btn) { btn.innerText = "💾 Save"; btn.disabled = false; }
-    }
-};
-
-window.deleteScript = async function(id) {
-    if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;
-    try {
-        window.STORE_DATA_CACHE = window.STORE_DATA_CACHE.filter(s => s.id !== id);
-        window.updateStoreUI();
-        await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
-    } catch(e) { alert("Lỗi khi xóa!"); }
-}
-
-window.clearStore = async function() {
-    if(!confirm("⚠️ CẢNH BÁO: Xóa TẤT CẢ kịch bản? Dữ liệu toàn cầu sẽ biến mất!")) return;
-    try {
-        window.STORE_DATA_CACHE = [];
-        window.updateStoreUI();
-        await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
-    } catch(e) { alert("Lỗi khi xóa!"); }
-}
-
-window.downloadText = function(code, content) {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${code}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-}
-
-async function generateAIScript(fullCode, btn) {
-    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
-
-    const row = document.getElementById(`ai-row-${fullCode}`);
-    const resultBox = document.getElementById(`ai-result-${fullCode}`);
-    const toggleBtn = document.getElementById(`toggle-btn-${fullCode}`);
-
-    row.style.display = 'table-row';
-    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
-    btn.disabled = true;
-
-    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
-    resultBox.innerHTML = processText;
-
-    try {
-        const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
-        const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
-        
-        const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
-        
-        const iE1 = getEl('E1', e1), iE2 = getEl('E2', e2), iE3 = getEl('E3', e3), iE4 = getEl('E4', e4), iE5 = getEl('E5', e5);
-        const getName = (obj) => obj ? (obj.Hook || obj.Detail || obj['Source/Video Type'] || obj['Insights to niches'] || obj.CTA || '') : '';
-
-        const eData = { 
-            e1: { name: getName(iE1), exp: iE1?.Explanation || '' },
-            e2: { name: getName(iE2), exp: iE2?.Explanation || '', group: iE2?.Group || '' },
-            e3: { name: getName(iE3), exp: iE3?.Explanation || '' },
-            e4: { name: getName(iE4), exp: iE4?.Explanation || '' }, 
-            e5: { name: getName(iE5), exp: iE5?.Explanation || '' }
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/generate-script`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fullCode, niche: CURRENT_NICHE, productBase,
-                scrapedData: GLOBAL_SCRAPED_DATA,
-                imageUrl: GLOBAL_IMAGE_URL,
-                spentCodes, eData
-            })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        let badges = [];
-        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
-
-        const badgesHtml = badges.join('');
-        const rawScriptText = data.script;
-
-        const imgBtnHtml = `<button id="img-btn-${fullCode}" onclick="requestSceneImage('${fullCode}')" class="modern-action-btn btn-scene">🖼️ Scene Image</button>`;
-        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
-        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
-        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
-
-        const scriptHtml = `
-            <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="font-size:14px; color:#1e293b;"><strong>🤖 Content Created For [${productBase}]:</strong> ${badgesHtml}</div>
-                <div style="display:flex;gap:10px;align-items:center;">
-                    ${promptBtnHtml}
-                    ${copyBtnHtml}
-                    ${saveBtnHtml}
-                    ${imgBtnHtml}
-                </div>
-            </div>
-            <div style="white-space:pre-wrap; padding:0 8px; font-size:14.5px; color:#334155; line-height:1.7;">${data.script}</div>
-        `;
-
-        resultBox.innerHTML = scriptHtml;
-        AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
-        saveStateToCache(); 
-        
-        renderReviewView();
-
-    } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "✨ Redo";
-    }
-}
-
-async function requestSceneImage(fullCode) {
-    const btn = document.getElementById(`img-btn-${fullCode}`);
-    if (!btn) return;
-
-    const cacheData = AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
-
-    const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
-
-    btn.innerText = "⏳ Generating (~15s)...";
-    btn.disabled = true;
-    btn.style.background = "#94a3b8";
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/generate-scene-image`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fullCode: fullCode,
-                script: cacheData.rawScript,
-                productBase: productBase,
-                scrapedData: GLOBAL_SCRAPED_DATA,
-                imageUrl: GLOBAL_IMAGE_URL
-            })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        window.SCENE_GALLERY.push({
-            fullCode: fullCode,
-            imageUrl: data.imageUrl,
-            script: cacheData.rawScript,
-            productBase: productBase
-        });
-
-        saveGallery();
-        saveStateToCache();
-
-        alert("✅ Image generated successfully! Check the 'Scene Gallery' tab.");
-        btn.innerText = "✅ Saved to Gallery";
-        btn.style.background = "#10b981";
-
-    } catch (err) {
-        alert(`❌ Lỗi tạo ảnh: ${err.message}`);
-        btn.innerText = "🖼️ Scene Image";
-        btn.style.background = "#eff6ff";
-        btn.disabled = false;
-    }
-}
-
-function renderGalleryView() {
-    const container = document.getElementById('gallery-container');
-    if (!container) return;
-
-    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
-        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images generated yet. Go to Selection Review to generate some!</div>`;
-        return;
-    }
-
-    let html = '';
-    const reversed = [...window.SCENE_GALLERY].reverse();
-
-    reversed.forEach((data, index) => {
-        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
-
-        html += `
-            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
-                <div style="width: 100%; aspect-ratio: 9 / 16; background: #f8fafc; overflow: hidden;">
-                    <a href="${data.imageUrl}" target="_blank">
-                        <img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy">
-                    </a>
-                </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Content</button>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-function showScriptModal(index) {
-    const data = window.SCENE_GALLERY[index];
-    if (!data) return;
-    const content = document.getElementById('script-modal-content');
-    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
-    document.getElementById('script-modal').style.display = 'flex';
-}

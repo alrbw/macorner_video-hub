@@ -21,7 +21,7 @@ function cleanAIScript(text) {
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' })); // Tăng limit để chứa nhiều ảnh Custom Base64
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -54,9 +54,7 @@ app.get('/api/store', (req, res) => {
         let store = readJsonFile(STORE_FILE);
         store.sort((a, b) => new Date(b.date) - new Date(a.date));
         res.json(store);
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi GET Store: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi GET Store: " + e.message }); }
 });
 
 app.post('/api/store', (req, res) => {
@@ -74,9 +72,7 @@ app.post('/api/store', (req, res) => {
         store.unshift(newItem);
         writeJsonFile(STORE_FILE, store);
         res.json({ success: true, item: newItem });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi POST Store: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi POST Store: " + e.message }); }
 });
 
 app.patch('/api/store/:id/favorite', (req, res) => {
@@ -90,9 +86,7 @@ app.patch('/api/store/:id/favorite', (req, res) => {
             writeJsonFile(STORE_FILE, store);
         }
         res.json({ success: true, isFavorite: currentFav });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi PATCH Store: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi PATCH Store: " + e.message }); }
 });
 
 app.delete('/api/store/:id', (req, res) => {
@@ -101,18 +95,14 @@ app.delete('/api/store/:id', (req, res) => {
         store = store.filter(s => s.id !== req.params.id);
         writeJsonFile(STORE_FILE, store);
         res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi DELETE Store: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi DELETE Store: " + e.message }); }
 });
 
 app.delete('/api/store', (req, res) => {
     try {
         writeJsonFile(STORE_FILE, []);
         res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi DELETE ALL Store: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi DELETE ALL Store: " + e.message }); }
 });
 
 // --- 2. SCENE GALLERY API ---
@@ -121,9 +111,7 @@ app.get('/api/gallery', (req, res) => {
         let gallery = readJsonFile(GALLERY_FILE);
         gallery.sort((a, b) => new Date(b.date) - new Date(a.date));
         res.json(gallery);
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi GET Gallery: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi GET Gallery: " + e.message }); }
 });
 
 app.post('/api/gallery', (req, res) => {
@@ -142,9 +130,7 @@ app.post('/api/gallery', (req, res) => {
         gallery.unshift(newItem);
         writeJsonFile(GALLERY_FILE, gallery);
         res.json({ success: true, item: newItem });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi POST Gallery: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi POST Gallery: " + e.message }); }
 });
 
 app.delete('/api/gallery/:id', (req, res) => {
@@ -154,18 +140,14 @@ app.delete('/api/gallery/:id', (req, res) => {
         gallery = gallery.filter(s => s.id !== id);
         writeJsonFile(GALLERY_FILE, gallery);
         res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi DELETE Gallery: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi DELETE Gallery: " + e.message }); }
 });
 
 app.delete('/api/gallery', (req, res) => {
     try {
         writeJsonFile(GALLERY_FILE, []);
         res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi DELETE ALL Gallery: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Lỗi DELETE ALL Gallery: " + e.message }); }
 });
 
 // =====================================================================
@@ -236,15 +218,12 @@ app.post('/api/analyze-link', async (req, res) => {
                         } catch (e) { }
                     }
                 }
-            } catch (err) {
-                console.error("Lỗi khi cào dữ liệu HTML:", err.message);
-            }
+            } catch (err) { console.error("Lỗi khi cào dữ liệu HTML:", err.message); }
         }
 
         let targetCode = "";
         let productBase = "";
 
-        // API Lark ở đây là để ĐỌC dữ liệu (Base Search), thường rất hiếm khi lỗi.
         try {
             if (process.env.PRODUCT_APP_TOKEN && process.env.PRODUCT_TABLE_ID) {
                 const token = await getLarkToken();
@@ -286,28 +265,32 @@ app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
         const safeNiche = String(niche || '');
-        const larkToken = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
-        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
-        const records = recordsRes.data.data.items || [];
+        let referenceText = "";
+        
+        try {
+            if (process.env.APP_ID && process.env.TABLE_ID) {
+                const tokenRes = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', { app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET });
+                const larkToken = tokenRes.data.tenant_access_token;
+                const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
+                const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
+                const records = recordsRes.data.data.items || [];
 
-        let scoredNotes = [];
-        const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
+                let scoredNotes = [];
+                const safeSpentCodes = Array.isArray(spentCodes) ? spentCodes : [];
 
-        records.forEach(item => {
-            const fields = item.fields;
-            if (!fields || !fields['Note Edit']) return;
-            
-            const code = String(fields['Code'] || fields['Video Code'] || ''); 
-            let score = 0;
-            
-            if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
-            if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
-            
-            if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
-        });
-        scoredNotes.sort((a, b) => b.score - a.score);
-        const referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
+                records.forEach(item => {
+                    const fields = item.fields;
+                    if (!fields || !fields['Note Edit']) return;
+                    const code = String(fields['Code'] || fields['Video Code'] || ''); 
+                    let score = 0;
+                    if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
+                    if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
+                    if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
+                });
+                scoredNotes.sort((a, b) => b.score - a.score);
+                referenceText = scoredNotes.slice(0, 5).map(n => n.note).join('\n---\n').substring(0, 3000);
+            }
+        } catch(e){}
 
         const getEDataName = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.name || '') : (eData?.[key] || '');
         const getEDataExp = (key) => typeof eData?.[key] === 'object' ? (eData[key]?.exp || '') : '';
@@ -340,13 +323,10 @@ app.post('/api/generate-script', async (req, res) => {
         let systemRole = "";
         let textPrompt = "";
 
-        // ==========================================
-        // LUỒNG 1: CHUYÊN BIỆT CHO SELF-GIFT (TỰ MUA)
-        // ==========================================
         if (isSelfGift) {
-            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
+            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else. YOUR OUTPUT MUST BE 100% IN ENGLISH. NO VIETNAMESE ALLOWED.";
             textPrompt = `
-TARGET DURATION: 20 to 25 seconds.
+TARGET DURATION: 11 to 15 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 
 === WARNING: CRITICAL CONTEXT ===
@@ -359,20 +339,19 @@ ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 === CRITICAL INSTRUCTIONS ===
 1. POV: SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, WIFE, OR ANYONE ELSE.
 2. TONE: ${toneInstruction}
+3. LANGUAGE: STRICTLY ENGLISH. DO NOT USE ANY VIETNAMESE WORDS.
 
 === SCRIPT STRUCTURE ===
 1. HOOK (0:00-0:03): "${e1Name}" - Frame it around treating oneself.
 2. BODY: "${e2Name}" - Showcase the product following this exact storyline. Focus purely on personal reaction.
 3. CTA: "${e5Name}" - Encourage the viewer to treat themselves.
 ADDITIONAL CONTEXT:\n${elementsContext}
+
+OUTPUT STRICTLY IN ENGLISH. NO VIETNAMESE ALLOWED.
 === OUTPUT FORMAT ===
 [0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
-        } 
-        // ==========================================
-        // LUỒNG 2: DÀNH CHO MUA TẶNG QUÀ (BÌNH THƯỜNG)
-        // ==========================================
-        else {
-            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
+        } else {
+            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller). STRICT REQUIREMENT: YOUR ENTIRE OUTPUT MUST BE IN ENGLISH. NO VIETNAMESE ALLOWED.";
             
             let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
             if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
@@ -384,7 +363,7 @@ ADDITIONAL CONTEXT:\n${elementsContext}
             else if (e2Check.includes("receiver")) povInstruction = `RECEIVER POV (First-person): You received this gift from ${buyer}. Use 'I', 'my'.`;
 
             textPrompt = `
-TARGET DURATION: 20 to 25 seconds.
+TARGET DURATION: 11 to 15 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
 
@@ -394,12 +373,15 @@ ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 === CRITICAL INSTRUCTIONS ===
 1. POV: ${povInstruction}
 2. TONE: ${toneInstruction}
+3. LANGUAGE: STRICTLY ENGLISH. DO NOT USE ANY VIETNAMESE WORDS.
 
 === SCRIPT STRUCTURE ===
 1. HOOK (0:00-0:03): "${e1Name}"
 2. BODY: "${e2Name}" 
 3. CTA: "${e5Name}"
 ADDITIONAL CONTEXT:\n${elementsContext}
+
+OUTPUT STRICTLY IN ENGLISH. NO VIETNAMESE ALLOWED.
 === OUTPUT FORMAT ===
 [0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
         }
@@ -441,17 +423,21 @@ ADDITIONAL CONTEXT:\n${elementsContext}
     }
 });
 
+// ÉP 100% TIẾNG ANH VÀO PROMPT QUAY VIDEO
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
         if (!script || !recipientDesc) return res.status(400).json({ error: "Missing required fields" });
 
-        const systemRole = "You are a UGC content creation expert.";
-        const textPrompt = `Hãy đóng vai một chuyên gia sáng tạo nội dung UGC. Nhiệm vụ của bạn là chuyển đổi Nội dung thô bên dưới thành một kịch bản quay video hoàn chỉnh theo quy chuẩn sau:
-Mô tả đối tượng: 1 câu mô tả nhân vật (tuổi, sắc tộc, thái độ) dựa trên thông tin: "${recipientDesc}". 
-Bối cảnh (không gian, ánh sáng, trang phục): ĐIỀU CHỈNH THEO NGỮ CẢNH. Nếu kịch bản nhắc đến đánh Golf, cắm trại, câu cá... hoặc dịp lễ, bối cảnh PHẢI tương ứng.
-Định dạng Scene: Chia thành 5 Scene. Action: hành động tự nhiên, UGC style. Dialogue: Lời thoại tiếng Anh.
-NỘI DUNG THÔ:\n${script}`;
+        const systemRole = "You are an expert UGC video director. CRITICAL INSTRUCTION: YOUR ENTIRE OUTPUT MUST BE STRICTLY WRITTEN IN ENGLISH. ABSOLUTELY NO VIETNAMESE WORDS ARE ALLOWED.";
+        const textPrompt = `Convert the raw content below into a complete video shooting prompt strictly in ENGLISH following these rules:
+
+1. Character & Setting: Write 1 English sentence describing the character (age, ethnicity, attitude) based on: "${recipientDesc}". 
+2. Context (Space, lighting, outfit): ADJUST STRICTLY TO CONTEXT. If the product implies Golf, Camping, Holidays, etc., the setting MUST match. Otherwise, use an average American daily life setting.
+3. Structure: 5 Scenes. Each scene must contain Action (natural UGC style) and Dialogue (spoken English naturally derived from the raw script).
+
+RAW CONTENT:
+${script}`;
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -467,16 +453,27 @@ NỘI DUNG THÔ:\n${script}`;
 });
 
 // =====================================================================
-// KẾT NỐI BYTEPLUS API (SEEDANCE) ĐỂ TẠO VIDEO (CÓ 9:16 & 720p)
+// KẾT NỐI BYTEPLUS API (SEEDANCE) 9:16 / 720p / 11-15s / Đa ảnh @image
 // =====================================================================
 
 app.post('/api/generate-video', async (req, res) => {
     try {
-        const { prompt, imageUrl } = req.body;
+        const { prompt, imageUrl, customImages } = req.body;
         if (!prompt) return res.status(400).json({ error: "Missing prompt data" });
 
-        const content = [{ type: "text", text: prompt }];
-        if (imageUrl) {
+        // Ép AI xuất video trong khoảng 11-15s thông qua lệnh prompt bổ sung
+        const finalPrompt = prompt + "\n\n(IMPORTANT INSTRUCTION FOR AI: Ensure the generated video duration is exactly between 11 to 15 seconds.)";
+
+        const content = [{ type: "text", text: finalPrompt }];
+        
+        // Ưu tiên Custom Images nếu có up. Seedance tự động hiểu thứ tự mảng này là @image1, @image2...
+        if (customImages && customImages.length > 0) {
+            customImages.forEach((imgBase64) => {
+                content.push({ type: "image_url", image_url: { url: imgBase64 }, role: "reference_image" });
+            });
+        } 
+        // Nếu không có, dùng ảnh từ Web gốc
+        else if (imageUrl) {
             content.push({ type: "image_url", image_url: { url: imageUrl }, role: "reference_image" });
         }
 
@@ -530,7 +527,6 @@ app.get('/api/check-video/:taskId', async (req, res) => {
                 if (vidObj) videoUrl = vidObj.video_url?.url || vidObj.url || "";
             }
             
-            // Trích xuất usage token
             let usageTokens = 0;
             if (task.usage && task.usage.total_tokens) {
                 usageTokens = task.usage.total_tokens;

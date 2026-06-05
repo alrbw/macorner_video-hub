@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Original Base + Edit Prompt + UI Fixed Box + Seedance Video)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout, Background Video Gen, Sync Gallery)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -26,6 +26,9 @@ if (!document.getElementById('modern-ui-styles')) {
         .prompt-view-box::-webkit-scrollbar-track { background: transparent; }
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .gallery-group { margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .gallery-group-title { margin: 0 0 15px 0; color: #0f172a; font-size: 16px; font-weight: 800; border-bottom: 2px solid #ea580c; display: inline-block; padding-bottom: 5px; }
     </style>`);
 }
 
@@ -53,16 +56,22 @@ window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 
 let GLOBAL_CACHE_KEY = ""; 
+window.SESSION_TOKENS = 0; // Tracking Tokens
 
-// LINK SERVER KOYEB CỦA BẠN
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
-try {
-    window.SCENE_GALLERY = JSON.parse(localStorage.getItem('macorner_gallery')) || [];
-} catch(e) { window.SCENE_GALLERY = []; }
-
-function saveGallery() {
-    localStorage.setItem('macorner_gallery', JSON.stringify(window.SCENE_GALLERY));
+function updateTokenUI(usedTokens) {
+    if(!usedTokens) return;
+    window.SESSION_TOKENS += usedTokens;
+    let el = document.getElementById('session-token-counter');
+    if(!el) {
+        const reviewNav = document.querySelector('#view-review .top-nav');
+        if(reviewNav) {
+            reviewNav.insertAdjacentHTML('beforeend', `<div style="margin-left:auto; background:#fff7ed; padding:6px 12px; border-radius:6px; border:1px solid #fdba74; font-size:13px; font-weight:bold; color:#ea580c; display:flex; align-items:center; gap:5px;">🪙 Tokens: <span id="session-token-counter">${window.SESSION_TOKENS.toLocaleString()}</span> / 500,000</div>`);
+        }
+    } else {
+        el.innerText = window.SESSION_TOKENS.toLocaleString();
+    }
 }
 
 function saveStateToCache() {
@@ -121,8 +130,8 @@ function switchView(view) {
     document.getElementById(`nav-${view}`).classList.add('active');
 
     if (view === 'review') renderReviewView();
-    if (view === 'gallery') renderGalleryView(); 
-    if (view === 'store') window.renderStore(); // Tự động cập nhật Cloud Store
+    if (view === 'gallery') window.renderGalleryView(); 
+    if (view === 'store') window.renderStore(); 
 }
 
 function extractNiche(adName) {
@@ -284,7 +293,6 @@ function renderHistoryTable(data) {
     document.getElementById('historyTableWrapper').innerHTML = html + `</tbody></table>`;
 }
 
-// BẢNG E2/E4 CHUẨN CANVA
 function renderMatrix(niche, limit, targetCode) {
     const e2List = getTopElements(niche, 'E2', limit);
     const e4List = getTopElements(niche, 'E4', limit);
@@ -573,6 +581,9 @@ function renderReviewView() {
     }
     if (!displayProductName) displayProductName = "Personalized Custom Gift";
 
+    // Setup Token Display UI
+    updateTokenUI(0); 
+
     const linkBadgeHtml = GLOBAL_SCRAPED_DATA
         ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;">✓ Data Connected</span>`
         : "";
@@ -626,7 +637,6 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
-            // Xử lý logic nút render trạng thái video theo Cache
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
             let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
@@ -718,7 +728,7 @@ window.togglePromptForm = function(fullCode) {
     }
 }
 
-// KHÔI PHỤC ĐẦY ĐỦ HÀM GỌI KỊCH BẢN (SCRIPT GENERATION)
+// GỌI API KỊCH BẢN (UPDATE TOKENS)
 window.generateAIScript = async function(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
@@ -765,6 +775,8 @@ window.generateAIScript = async function(fullCode, btn) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
+        updateTokenUI(data.tokens || 0);
+
         let badges = [];
         if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
 
@@ -801,7 +813,7 @@ window.generateAIScript = async function(fullCode, btn) {
     }
 }
 
-// KHÔI PHỤC ĐẦY ĐỦ HÀM TẠO PROMPT QUAY VIDEO
+// GỌI API SHOOTING PROMPT (UPDATE TOKENS)
 window.generateShootingPrompt = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
@@ -839,6 +851,8 @@ window.generateShootingPrompt = async function(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
+        updateTokenUI(data.tokens || 0);
+
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
         
         resultBox.innerHTML = `
@@ -852,7 +866,6 @@ window.generateShootingPrompt = async function(fullCode) {
 
         cacheData.promptRecipient = recipientDesc;
         cacheData.shootingPrompt = data.prompt;
-        // Đặt lại state video nếu tạo prompt mới
         cacheData.videoGenStatus = '';
         cacheData.videoGenTime = 0;
         
@@ -866,7 +879,6 @@ window.generateShootingPrompt = async function(fullCode) {
     }
 }
 
-// LOGIC CHỈNH SỬA PROMPT TRỰC TIẾP TRÊN UI
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const currentText = textDiv.innerText;
@@ -919,20 +931,18 @@ window.cancelPromptEdit = function(code) {
 };
 
 // =====================================================================
-// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
+// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) & ĐẨY LÊN CLOUD GALLERY
 // =====================================================================
 
 window.generateVideo = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     AI_CACHE.set(fullCode, cacheData);
     saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -957,7 +967,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -965,7 +974,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -992,15 +1000,20 @@ window.generateVideo = async function(fullCode) {
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
 
-                    window.SCENE_GALLERY.push({
-                        fullCode: fullCode,
-                        videoUrl: statusData.videoUrl, 
-                        imageUrl: GLOBAL_IMAGE_URL, 
-                        script: cData.shootingPrompt, 
-                        productBase: productBase
+                    // Đẩy lên Server Gallery API
+                    await fetch(`${API_BASE_URL}/api/gallery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fullCode: fullCode,
+                            targetCode: GLOBAL_TARGET_CODE || "Unknown",
+                            videoUrl: statusData.videoUrl, 
+                            imageUrl: GLOBAL_IMAGE_URL, 
+                            script: cData.shootingPrompt, 
+                            productBase: productBase
+                        })
                     });
 
-                    saveGallery();
                     alert(`✅ Video cho mã [${fullCode}] đã tạo xong! Kiểm tra tại Scene Gallery.`);
                     
                 } else if (statusData.status === 'failed' || statusData.status === 'FAILED') {
@@ -1023,7 +1036,7 @@ window.generateVideo = async function(fullCode) {
                 console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 AI_CACHE.set(fullCode, cData);
@@ -1056,9 +1069,123 @@ window.generateVideo = async function(fullCode) {
     }
 };
 
-// =====================================================================
+// ==========================================
+// ĐỒNG BỘ CLOUD GALLERY & BỘ LỌC TÌM KIẾM
+// ==========================================
+
+window.CLOUD_GALLERY_CACHE = [];
+
+window.buildGalleryUI = function() {
+    const galleryPane = document.getElementById('view-gallery');
+    if (!galleryPane) return;
+
+    if (!document.getElementById('gallery-wrap-container')) {
+        galleryPane.innerHTML = `
+            <header class="top-nav">
+                <h2>Generated Scene Gallery (Cloud Sync)</h2>
+            </header>
+            <section class="card" id="gallery-wrap-container">
+                <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                    <input type="text" id="gal-filter-niche" placeholder="🔍 Niche (e.g. DOG)" oninput="window.updateGalleryUI()" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; width: 140px; font-size:13px;">
+                    <input type="text" id="gal-filter-pb" placeholder="🔍 Product Base..." oninput="window.updateGalleryUI()" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; flex:1; font-size:13px;">
+                    <input type="text" id="gal-filter-idea" placeholder="🔍 Idea (Last 2 chars)" oninput="window.updateGalleryUI()" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; width: 170px; font-size:13px;">
+                </div>
+                <div id="gallery-container"></div>
+            </section>
+        `;
+    }
+}
+
+window.renderGalleryView = async function() {
+    window.buildGalleryUI();
+    const container = document.getElementById('gallery-container');
+    if (!container) return;
+
+    container.innerHTML = `<p style='text-align:center; padding:40px; color:#94a3b8;'>⏳ Đang tải Gallery từ máy chủ đám mây...</p>`;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/gallery?t=${Date.now()}`);
+        window.CLOUD_GALLERY_CACHE = await res.json();
+        window.updateGalleryUI();
+    } catch(e) {
+        container.innerHTML = `<p style='text-align:center; padding:40px; color:red;'>Lỗi tải Gallery: ${e.message}</p>`;
+    }
+};
+
+window.updateGalleryUI = function() {
+    const container = document.getElementById('gallery-container');
+    if (!container) return;
+
+    const fNiche = (document.getElementById('gal-filter-niche')?.value || "").toLowerCase().trim();
+    const fPb = (document.getElementById('gal-filter-pb')?.value || "").toLowerCase().trim();
+    const fIdea = (document.getElementById('gal-filter-idea')?.value || "").toLowerCase().trim();
+
+    // Áp dụng bộ lọc
+    let filtered = window.CLOUD_GALLERY_CACHE.filter(item => {
+        let pass = true;
+        const target = (item.targetCode || "").toLowerCase();
+        
+        if (fNiche && !target.startsWith(fNiche)) pass = false;
+        if (fPb && !(item.productBase || "").toLowerCase().includes(fPb)) pass = false;
+        if (fIdea && target.slice(-2) !== fIdea) pass = false;
+
+        return pass;
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #94a3b8; width: 100%;">Không tìm thấy Video/Hình ảnh nào.</div>`;
+        return;
+    }
+
+    // Nhóm theo Target Code (Mã mẫu)
+    const grouped = {};
+    filtered.forEach(item => {
+        const tc = item.targetCode || "Unknown";
+        if (!grouped[tc]) grouped[tc] = [];
+        grouped[tc].push(item);
+    });
+
+    let html = '';
+    Object.keys(grouped).forEach(tc => {
+        html += `<div class="gallery-group">
+                    <h3 class="gallery-group-title">Target Code: ${tc.toUpperCase()}</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 20px;">`;
+        
+        grouped[tc].forEach((data) => {
+            const mediaHtml = data.videoUrl
+                ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: contain; background: #000;" poster="${data.imageUrl || ''}"></video>`
+                : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
+
+            html += `
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+                    <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+                        ${mediaHtml}
+                    </div>
+                    <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
+                        <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
+                        <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
+                        <button onclick="showCloudScriptModal('${data.id}')" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.showCloudScriptModal = function(id) {
+    const data = window.CLOUD_GALLERY_CACHE.find(i => i.id === id);
+    if (!data) return;
+    const content = document.getElementById('script-modal-content');
+    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333; white-space:pre-wrap;">${data.script}</div>`;
+    document.getElementById('script-modal').style.display = 'flex';
+};
+
+// ==========================================
 // TOOLTIP & EVENT LISTENERS
-// =====================================================================
+// ==========================================
 
 function adjustTooltip(e, tooltip) {
     const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
@@ -1112,7 +1239,6 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// GỘP CHỨC NĂNG COPY SCRIPT THÔ
 window.copyScript = function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -1140,9 +1266,6 @@ window.copyScript = function(fullCode) {
     });
 };
 
-// ==========================================
-// STORE DATA & LARK BASE
-// ==========================================
 window.STORE_DATA_CACHE = [];
 
 window.buildStoreUI = function() {
@@ -1379,48 +1502,4 @@ window.downloadText = function(code, content) {
     a.download = `${code}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
-}
-
-function renderGalleryView() {
-    const container = document.getElementById('gallery-container');
-    if (!container) return;
-
-    if (!window.SCENE_GALLERY || window.SCENE_GALLERY.length === 0) {
-        container.innerHTML = `<div style="padding: 40px; text-align: center; color: #999; width: 100%;">No scene images/videos generated yet. Go to Selection Review to generate some!</div>`;
-        return;
-    }
-
-    let html = '';
-    const reversed = [...window.SCENE_GALLERY].reverse();
-
-    reversed.forEach((data, index) => {
-        const originalIndex = window.SCENE_GALLERY.length - 1 - index;
-        
-        const mediaHtml = data.videoUrl
-            ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: cover;" poster="${data.imageUrl || ''}"></video>`
-            : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
-
-        html += `
-            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
-                <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
-                    ${mediaHtml}
-                </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-function showScriptModal(index) {
-    const data = window.SCENE_GALLERY[index];
-    if (!data) return;
-    const content = document.getElementById('script-modal-content');
-    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333; white-space:pre-wrap;">${data.script}</div>`;
-    document.getElementById('script-modal').style.display = 'flex';
 }

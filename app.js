@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout, Video Gen)
+ * FULL AUTO V60 (Merged Prompt, Cloud Store Fix, Favorites Filter, Modern UI, Fixed Layout, Async Video Gen)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -44,6 +44,10 @@ let CURRENT_NICHE = "";
 
 let AI_CACHE = new Map();
 let MIX_OPTIONS_CACHE = new Map(); 
+
+// HỆ THỐNG THEO DÕI TASK VIDEO CHẠY NGẦM
+window.ACTIVE_VIDEO_TASKS = window.ACTIVE_VIDEO_TASKS || new Map();
+window.POLL_INTERVALS = window.POLL_INTERVALS || new Map();
 
 let MANUAL_E2 = [];
 let MANUAL_E4 = [];
@@ -624,13 +628,26 @@ function renderReviewView() {
             const toggleIcon = isExpanded ? '▼' : '▶';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
+            // Kiểm tra tiến trình Generate Video Ngầm
+            const isGeneratingVideo = window.ACTIVE_VIDEO_TASKS && window.ACTIVE_VIDEO_TASKS.has(code);
+            const vidBtnBg = isGeneratingVideo ? '#f1f5f9' : '#f5f3ff';
+            const vidBtnColor = isGeneratingVideo ? '#94a3b8' : '#6d28d9';
+            const vidBtnBorder = isGeneratingVideo ? '#e2e8f0' : '#c084fc';
+            
+            let vidBtnText = '🎥 Generate Video';
+            if (isGeneratingVideo) {
+                const elapsed = window.ACTIVE_VIDEO_TASKS.get(code).timeElapsed || 0;
+                vidBtnText = `⏳ Generating (${elapsed}s)...`;
+            }
+            const vidBtnDisabled = isGeneratingVideo ? 'disabled' : '';
+
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
             const ugcPromptResultContent = ugcPromptResult ? `
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
                     <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
                     <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
-                    <button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>
+                    <button onclick="window.generateVideo('${code}')" id="video-btn-${code}" ${vidBtnDisabled} style="padding: 6px 12px; border: 1px solid ${vidBtnBorder}; border-radius: 6px; cursor: ${isGeneratingVideo ? 'not-allowed' : 'pointer'}; background: ${vidBtnBg}; font-weight: 600; color: ${vidBtnColor}; font-size: 12px; transition:all 0.2s;" ${isGeneratingVideo ? '' : `onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"`}>${vidBtnText}</button>
                 </div>
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
             ` : '';
@@ -818,7 +835,7 @@ window.cancelPromptEdit = function(code) {
 };
 
 // =====================================================================
-// LUỒNG MỚI: GỌI API BYTEPLUS (SEEDANCE) & CƠ CHẾ POLLING
+// API BYTEPLUS (SEEDANCE) & ASYNC POLLING
 // =====================================================================
 
 window.generateVideo = async function(fullCode) {
@@ -826,7 +843,7 @@ window.generateVideo = async function(fullCode) {
     if (!btn) return;
 
     const textDiv = document.getElementById(`prompt-text-${fullCode}`);
-    const currentPrompt = textDiv.innerText;
+    const currentPrompt = textDiv ? textDiv.innerText : "";
 
     if (!currentPrompt) return alert("Không tìm thấy Prompt!");
 
@@ -849,21 +866,50 @@ window.generateVideo = async function(fullCode) {
         if (!data.taskId) throw new Error("Không nhận được Task ID từ hệ thống.");
 
         const taskId = data.taskId;
-        let timeElapsed = 0;
+        
+        // Hiện thông báo Popup
+        const toast = document.createElement('div');
+        toast.innerHTML = `🚀 Đang kết xuất Video <b>${fullCode}</b> ngầm.<br><small style="font-weight:normal;">Bạn có thể an tâm chuyển tab làm việc khác.</small>`;
+        toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#10b981; color:white; padding:15px 20px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.2); z-index:9999; font-size:14px; font-weight:bold; border-left:5px solid #064e3b;";
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4500);
 
-        const pollInterval = setInterval(async () => {
-            timeElapsed += 5;
-            btn.innerText = `⏳ Generating (${timeElapsed}s)...`;
+        // Lưu Task ID vào hệ thống toàn cục
+        window.ACTIVE_VIDEO_TASKS.set(fullCode, { taskId: taskId, timeElapsed: 0 });
+        
+        // Cập nhật DOM ngay nếu nút vẫn hiển thị
+        btn.innerText = `⏳ Generating (5s)...`;
+
+        window.POLL_INTERVALS.set(fullCode, setInterval(async () => {
+            const taskObj = window.ACTIVE_VIDEO_TASKS.get(fullCode);
+            if (!taskObj) { clearInterval(window.POLL_INTERVALS.get(fullCode)); return; }
+
+            taskObj.timeElapsed += 5;
+            
+            // Tìm nút bấm (Trường hợp user quay lại đúng tab)
+            const currentBtn = document.getElementById(`video-btn-${fullCode}`);
+            if (currentBtn) {
+                currentBtn.innerText = `⏳ Generating (${taskObj.timeElapsed}s)...`;
+            }
 
             try {
                 const statusRes = await fetch(`${API_BASE_URL}/api/check-video/${taskId}`);
                 const statusData = await statusRes.json();
 
                 if (statusData.status === 'succeeded' || statusData.status === 'SUCCEEDED') {
-                    clearInterval(pollInterval);
-                    btn.innerText = "✅ Video Ready!";
-                    btn.style.background = "#10b981";
-                    btn.style.color = "white";
+                    clearInterval(window.POLL_INTERVALS.get(fullCode));
+                    window.ACTIVE_VIDEO_TASKS.delete(fullCode);
+                    window.POLL_INTERVALS.delete(fullCode);
+
+                    if (currentBtn) {
+                        currentBtn.innerText = "✅ Video Ready!";
+                        currentBtn.style.background = "#10b981";
+                        currentBtn.style.color = "white";
+                        currentBtn.style.border = "1px solid #059669";
+                        currentBtn.disabled = false;
+                        currentBtn.style.cursor = "pointer";
+                        currentBtn.style.opacity = "1";
+                    }
 
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
@@ -871,37 +917,65 @@ window.generateVideo = async function(fullCode) {
                     window.SCENE_GALLERY.push({
                         fullCode: fullCode,
                         videoUrl: statusData.videoUrl, 
-                        imageUrl: GLOBAL_IMAGE_URL, // Backup for poster
+                        imageUrl: GLOBAL_IMAGE_URL, 
                         script: currentPrompt, 
                         productBase: productBase
                     });
 
                     saveGallery();
                     saveStateToCache();
-                    alert("✅ Tạo video thành công! Vui lòng kiểm tra tab 'Scene Gallery'.");
+                    
+                    alert(`✅ Video cho mã [${fullCode}] đã tạo thành công! Hãy kiểm tra tab 'Scene Gallery'.`);
+                    
+                    if (document.getElementById('view-gallery').classList.contains('active')) {
+                        renderGalleryView();
+                    }
+
                 } else if (statusData.status === 'failed' || statusData.status === 'FAILED') {
-                    clearInterval(pollInterval);
+                    clearInterval(window.POLL_INTERVALS.get(fullCode));
+                    window.ACTIVE_VIDEO_TASKS.delete(fullCode);
+                    window.POLL_INTERVALS.delete(fullCode);
                     throw new Error(statusData.error || "Video generation failed.");
                 }
             } catch (pollErr) {
-                clearInterval(pollInterval);
-                alert(`❌ Lỗi kiểm tra video: ${pollErr.message}`);
-                btn.innerText = "🎥 Generate Video";
-                btn.disabled = false;
-                btn.style.opacity = "1";
+                clearInterval(window.POLL_INTERVALS.get(fullCode));
+                window.ACTIVE_VIDEO_TASKS.delete(fullCode);
+                window.POLL_INTERVALS.delete(fullCode);
+                
+                alert(`❌ Lỗi kết xuất video [${fullCode}]: ${pollErr.message}`);
+                
+                if (currentBtn) {
+                    currentBtn.innerText = "🎥 Generate Video";
+                    currentBtn.disabled = false;
+                    currentBtn.style.opacity = "1";
+                    currentBtn.style.background = "#f5f3ff";
+                    currentBtn.style.color = "#6d28d9";
+                    currentBtn.style.border = "1px solid #c084fc";
+                    currentBtn.style.cursor = "pointer";
+                }
             }
 
-            if (timeElapsed >= 300) {
-                clearInterval(pollInterval);
-                alert("⏳ Quá thời gian chờ (5 phút). Vui lòng thử lại sau.");
-                btn.innerText = "🎥 Generate Video";
-                btn.disabled = false;
-                btn.style.opacity = "1";
+            if (taskObj.timeElapsed >= 300) {
+                clearInterval(window.POLL_INTERVALS.get(fullCode));
+                window.ACTIVE_VIDEO_TASKS.delete(fullCode);
+                window.POLL_INTERVALS.delete(fullCode);
+                
+                alert(`⏳ Quá thời gian chờ (5 phút) cho mã [${fullCode}]. Vui lòng thử lại sau.`);
+                
+                if (currentBtn) {
+                    currentBtn.innerText = "🎥 Generate Video";
+                    currentBtn.disabled = false;
+                    currentBtn.style.opacity = "1";
+                    currentBtn.style.background = "#f5f3ff";
+                    currentBtn.style.color = "#6d28d9";
+                    currentBtn.style.border = "1px solid #c084fc";
+                    currentBtn.style.cursor = "pointer";
+                }
             }
         }, 5000);
 
     } catch (err) {
-        alert(`❌ Lỗi tạo video: ${err.message}`);
+        alert(`❌ Lỗi gọi API tạo video: ${err.message}`);
         btn.innerText = "🎥 Generate Video";
         btn.disabled = false;
         btn.style.opacity = "1";
@@ -923,7 +997,6 @@ function renderGalleryView() {
     reversed.forEach((data, index) => {
         const originalIndex = window.SCENE_GALLERY.length - 1 - index;
         
-        // Hỗ trợ cả video (mới) và hình ảnh (cũ)
         const mediaHtml = data.videoUrl
             ? `<video src="${data.videoUrl}" controls style="width: 100%; height: 100%; object-fit: cover;" poster="${data.imageUrl || ''}"></video>`
             : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy"></a>`;
@@ -933,74 +1006,4 @@ function renderGalleryView() {
                 <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;">
                     ${mediaHtml}
                 </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #f97316;">Code: ${data.fullCode}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
-                    <button onclick="showScriptModal(${originalIndex})" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-function showScriptModal(index) {
-    const data = window.SCENE_GALLERY[index];
-    if (!data) return;
-    const content = document.getElementById('script-modal-content');
-    content.innerHTML = `<h3 style="margin-top:0; color:#f97316;">Content for [${data.fullCode}]</h3><div style="color:#333;">${data.script}</div>`;
-    document.getElementById('script-modal').style.display = 'flex';
-}
-
-function adjustTooltip(e, tooltip) {
-    const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
-    const ttWidth = tooltip.offsetWidth; const ttHeight = tooltip.offsetHeight;
-    if (x + ttWidth > window.innerWidth + window.scrollX - 20) x = e.pageX - ttWidth - gap;
-    if (y + ttHeight > window.innerHeight + window.scrollY - 20) y = e.pageY - ttHeight - gap;
-    tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px';
-}
-
-document.addEventListener('mouseover', (e) => {
-    const box = e.target.closest('.code-box');
-    if (box && box.dataset.code) {
-        const { type, code } = box.dataset;
-        const info = typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0')) : null;
-        if (info) {
-            const tt = document.getElementById('tooltip');
-            const name = info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || "N/A";
-            tt.innerHTML = `<b>${name}</b><i>${info.Explanation || ''}</i>`;
-            tt.style.display = 'block';
-        }
-    }
-
-    const fullCodeElem = e.target.closest('.full-code-text');
-    if (fullCodeElem && fullCodeElem.dataset.full && typeof ELEMENTS_DATA !== 'undefined') {
-        const full = fullCodeElem.dataset.full;
-        const tt = document.getElementById('fullcode-tooltip');
-        const parts = [
-            { t: 'E1', c: full.substring(0, 2), l: 'Hook' }, { t: 'E2', c: full.substring(2, 4), l: 'Angle' },
-            { t: 'E3', c: full.substring(4, 6), l: 'Source' }, { t: 'E4', c: full.substring(6, 8), l: 'Insight' },
-            { t: 'E5', c: full.substring(8, 10), l: 'CTA' }
-        ];
-        let html = `<b style="margin-bottom:8px">Chain: ${full}</b><table class="preview-table"><tr><th>Type</th><th>Code</th><th>Name</th></tr>`;
-        parts.forEach(p => {
-            const info = ELEMENTS_DATA[p.t]?.find(i => i.Code.toString().padStart(2, '0') == p.c);
-            const name = info ? (info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || 'N/A') : 'Unknown';
-            html += `<tr><td>${p.l}</td><td>${p.c}</td><td>${name}</td></tr>`;
-        });
-        tt.innerHTML = html + `</table>`;
-        tt.style.display = 'block';
-    }
-});
-
-document.addEventListener('mousemove', (e) => {
-    const tt1 = document.getElementById('tooltip'); const tt2 = document.getElementById('fullcode-tooltip');
-    if (tt1 && tt1.style.display === 'block') adjustTooltip(e, tt1);
-    if (tt2 && tt2.style.display === 'block') adjustTooltip(e, tt2);
-});
-
-document.addEventListener('mouseout', (e) => {
-    if (e.target.closest('.code-box')) document.getElementById('tooltip').style.display = 'none';
-    if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
-});
+                <div style="padding: 15px; border-top: 1px solid #

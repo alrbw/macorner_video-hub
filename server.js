@@ -33,194 +33,143 @@ async function getLarkToken() {
 }
 
 // =====================================================================
-// CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
+// HỆ THỐNG LƯU TRỮ LOCAL TRÊN KOYEB CLOUD (JSON FILES)
 // =====================================================================
+const STORE_FILE = path.join(__dirname, 'scripts_store.json');
+const GALLERY_FILE = path.join(__dirname, 'gallery_store.json');
 
-app.get('/api/store', async (req, res) => {
+function readJsonFile(filePath) {
+    if (!fs.existsSync(filePath)) return [];
+    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    catch(e) { return []; }
+}
+
+function writeJsonFile(filePath, data) {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// --- 1. SCRIPT STORE API ---
+app.get('/api/store', (req, res) => {
     try {
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
-        
-        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const items = recordsRes.data?.data?.items || [];
-        
-        const store = items.map(item => ({
-            id: item.record_id,
-            code: item.fields['Code'] || "",
-            productBase: item.fields['Product Base'] || "",
-            targetCode: item.fields['Target Code'] || "",
-            content: item.fields['Content'] || "",
-            isFavorite: !!item.fields['Is Favorite'],
-            date: item.fields['Date'] || new Date().toISOString()
-        }));
-        
+        let store = readJsonFile(STORE_FILE);
         store.sort((a, b) => new Date(b.date) - new Date(a.date));
         res.json(store);
     } catch(e) {
-        console.error("Lỗi GET Store từ Lark:", e.message);
-        res.status(500).json({ error: "Không thể lấy dữ liệu kịch bản từ Lark: " + e.message });
+        res.status(500).json({ error: "Lỗi GET Store: " + e.message });
     }
 });
 
-app.post('/api/store', async (req, res) => {
+app.post('/api/store', (req, res) => {
     try {
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records`;
-        
-        const fields = {
-            "Code": req.body.code || req.body.fullCode || "",
-            "Product Base": req.body.productBase || req.body.product || "Personalized Custom Gift",
-            "Target Code": req.body.targetCode || "",
-            "Content": req.body.content || "",
-            "Is Favorite": false,
-            "Date": new Date().toISOString()
+        const store = readJsonFile(STORE_FILE);
+        const newItem = { 
+            id: Date.now().toString() + Math.floor(Math.random() * 1000), 
+            code: req.body.code || req.body.fullCode || "",
+            productBase: req.body.productBase || req.body.product || "Personalized Custom Gift",
+            targetCode: req.body.targetCode || "",
+            content: req.body.content || "",
+            isFavorite: false,
+            date: new Date().toISOString() 
         };
-
-        const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
-        const newRecord = response.data?.data?.record;
-        
-        res.json({ success: true, item: { id: newRecord?.record_id || Date.now().toString(), ...fields } });
+        store.unshift(newItem);
+        writeJsonFile(STORE_FILE, store);
+        res.json({ success: true, item: newItem });
     } catch(e) {
-        res.status(500).json({ error: "Không thể ghi kịch bản lên Lark Base: " + e.message });
+        res.status(500).json({ error: "Lỗi POST Store: " + e.message });
     }
 });
 
-app.patch('/api/store/:id/favorite', async (req, res) => {
+app.patch('/api/store/:id/favorite', (req, res) => {
     try {
-        const { id } = req.params;
-        const token = await getLarkToken();
-        
-        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
-        const recordRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const currentFav = !!recordRes.data?.data?.record?.fields?.['Is Favorite'];
-        
-        const patchUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
-        await axios.patch(patchUrl, { fields: { "Is Favorite": !currentFav } }, { headers: { 'Authorization': `Bearer ${token}` } });
-        
-        res.json({ success: true, isFavorite: !currentFav });
-    } catch(e) {
-        res.status(500).json({ error: "Không thể đổi trạng thái yêu thích: " + e.message });
-    }
-});
-
-app.delete('/api/store/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
-        await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Không thể xóa kịch bản này trên Lark: " + e.message });
-    }
-});
-
-app.delete('/api/store', async (req, res) => {
-    try {
-        const token = await getLarkToken();
-        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
-        const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const items = recordsRes.data?.data?.items || [];
-        
-        if (items.length > 0) {
-            const recordIds = items.map(i => i.record_id);
-            const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/batch_delete`;
-            await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
+        let store = readJsonFile(STORE_FILE);
+        const index = store.findIndex(s => s.id === req.params.id);
+        let currentFav = false;
+        if (index !== -1) {
+            store[index].isFavorite = !store[index].isFavorite;
+            currentFav = store[index].isFavorite;
+            writeJsonFile(STORE_FILE, store);
         }
-        res.json({ success: true });
+        res.json({ success: true, isFavorite: currentFav });
     } catch(e) {
-        res.status(500).json({ error: "Không thể dọn sạch bảng lưu trữ: " + e.message });
+        res.status(500).json({ error: "Lỗi PATCH Store: " + e.message });
     }
 });
 
-// =====================================================================
-// CLOUD SCENE GALLERY DỰA TRÊN LARK BASE
-// =====================================================================
-
-app.get('/api/gallery', async (req, res) => {
+app.delete('/api/store/:id', (req, res) => {
     try {
-        if(!process.env.GALLERY_TABLE_ID) return res.json([]);
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records?page_size=500`;
-        
-        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const items = recordsRes.data?.data?.items || [];
-        
-        const gallery = items.map(item => ({
-            id: item.record_id,
-            code: item.fields['Code'] || "",
-            productBase: item.fields['Product Base'] || "",
-            targetCode: item.fields['Target Code'] || "",
-            videoUrl: item.fields['Video URL'] || "",
-            imageUrl: item.fields['Image URL'] || "",
-            prompt: item.fields['Prompt'] || "",
-            date: item.fields['Date'] || new Date().toISOString()
-        }));
-        
+        let store = readJsonFile(STORE_FILE);
+        store = store.filter(s => s.id !== req.params.id);
+        writeJsonFile(STORE_FILE, store);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi DELETE Store: " + e.message });
+    }
+});
+
+app.delete('/api/store', (req, res) => {
+    try {
+        writeJsonFile(STORE_FILE, []);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: "Lỗi DELETE ALL Store: " + e.message });
+    }
+});
+
+// --- 2. SCENE GALLERY API ---
+app.get('/api/gallery', (req, res) => {
+    try {
+        let gallery = readJsonFile(GALLERY_FILE);
         gallery.sort((a, b) => new Date(b.date) - new Date(a.date));
         res.json(gallery);
     } catch(e) {
-        console.error("Lỗi GET Gallery từ Lark:", e.message);
         res.status(500).json({ error: "Lỗi GET Gallery: " + e.message });
     }
 });
 
-app.post('/api/gallery', async (req, res) => {
+app.post('/api/gallery', (req, res) => {
     try {
-        if(!process.env.GALLERY_TABLE_ID) return res.json({success: true, msg: "Bỏ qua lưu Lark vì thiếu GALLERY_TABLE_ID"});
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records`;
-        
-        const fields = {
-            "Code": req.body.code || req.body.fullCode || "",
-            "Product Base": req.body.productBase || "",
-            "Target Code": req.body.targetCode || "",
-            "Video URL": req.body.videoUrl || "",
-            "Image URL": req.body.imageUrl || "",
-            "Prompt": req.body.prompt || req.body.script || "",
-            "Date": new Date().toISOString()
+        const gallery = readJsonFile(GALLERY_FILE);
+        const newItem = {
+            id: Date.now().toString() + Math.floor(Math.random() * 1000),
+            code: req.body.code || req.body.fullCode || "",
+            productBase: req.body.productBase || "",
+            targetCode: req.body.targetCode || "",
+            videoUrl: req.body.videoUrl || "",
+            imageUrl: req.body.imageUrl || "",
+            prompt: req.body.prompt || req.body.script || "",
+            date: new Date().toISOString()
         };
-
-        const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
-        res.json({ success: true, item: { id: response.data?.data?.record?.record_id, ...fields } });
+        gallery.unshift(newItem);
+        writeJsonFile(GALLERY_FILE, gallery);
+        res.json({ success: true, item: newItem });
     } catch(e) {
-        console.error("Lỗi POST Gallery lên Lark:", e.message);
         res.status(500).json({ error: "Lỗi POST Gallery: " + e.message });
     }
 });
 
-app.delete('/api/gallery/:id', async (req, res) => {
+app.delete('/api/gallery/:id', (req, res) => {
     try {
         const { id } = req.params;
-        const token = await getLarkToken();
-        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records/${id}`;
-        await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        let gallery = readJsonFile(GALLERY_FILE);
+        gallery = gallery.filter(s => s.id !== id);
+        writeJsonFile(GALLERY_FILE, gallery);
         res.json({ success: true });
     } catch(e) {
-        res.status(500).json({ error: "Không thể xóa Video này trên Lark: " + e.message });
+        res.status(500).json({ error: "Lỗi DELETE Gallery: " + e.message });
     }
 });
 
-app.delete('/api/gallery', async (req, res) => {
+app.delete('/api/gallery', (req, res) => {
     try {
-        const token = await getLarkToken();
-        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records?page_size=500`;
-        const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-        const items = recordsRes.data?.data?.items || [];
-        
-        if (items.length > 0) {
-            const recordIds = items.map(i => i.record_id);
-            const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.GALLERY_TABLE_ID}/records/batch_delete`;
-            await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
-        }
+        writeJsonFile(GALLERY_FILE, []);
         res.json({ success: true });
     } catch(e) {
-        res.status(500).json({ error: "Không thể dọn sạch Gallery trên Lark: " + e.message });
+        res.status(500).json({ error: "Lỗi DELETE ALL Gallery: " + e.message });
     }
 });
 
 // =====================================================================
-// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT & TẠO PROMPT
+// PHÂN TÍCH SẢN PHẨM LẤY DATA TỪ LARK BASE & WEB
 // =====================================================================
 
 app.post('/api/analyze-link', async (req, res) => {
@@ -295,6 +244,7 @@ app.post('/api/analyze-link', async (req, res) => {
         let targetCode = "";
         let productBase = "";
 
+        // API Lark ở đây là để ĐỌC dữ liệu (Base Search), thường rất hiếm khi lỗi.
         try {
             if (process.env.PRODUCT_APP_TOKEN && process.env.PRODUCT_TABLE_ID) {
                 const token = await getLarkToken();
@@ -319,7 +269,7 @@ app.post('/api/analyze-link', async (req, res) => {
             if (!targetCode) targetCode = asin.toUpperCase();
         }
 
-        if (!targetCode) throw new Error(`Không tìm thấy Design Code cho dữ liệu: ${asin} trong Lark.`);
+        if (!targetCode) throw new Error(`Không tìm thấy Design Code cho dữ liệu: ${asin}`);
 
         const niche = targetCode.substring(0, 3).toUpperCase();
         let cleanDescription = description.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, 1500);
@@ -347,10 +297,13 @@ app.post('/api/generate-script', async (req, res) => {
         records.forEach(item => {
             const fields = item.fields;
             if (!fields || !fields['Note Edit']) return;
+            
             const code = String(fields['Code'] || fields['Video Code'] || ''); 
             let score = 0;
+            
             if (code.toUpperCase().includes(safeNiche.toUpperCase())) score += 100;
             if (safeSpentCodes.some(sc => code.toUpperCase().includes(String(sc).toUpperCase()))) score += 15;
+            
             if (score > 0) scoredNotes.push({ note: fields['Note Edit'], score: score });
         });
         scoredNotes.sort((a, b) => b.score - a.score);
@@ -369,7 +322,6 @@ app.post('/api/generate-script', async (req, res) => {
         const e4 = fullCode.substring(6, 8);
         let insightName = String(e4Name);
         
-        // Khai báo mặc định an toàn cho mọi luồng (Phòng sập ReferenceError)
         let buyer = "The Viewer";
         let receiver = "The Gift Recipient";
 

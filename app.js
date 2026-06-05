@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Cloud Local Store & Gallery, Token UI, Fullscreen 9:16 Fix, Sidebar Filters)
+ * FULL AUTO V61 (Smart Suggest @image, Custom Ref Upload, Gallery Smart Filter)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -27,12 +27,21 @@ if (!document.getElementById('modern-ui-styles')) {
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* CSS Fix Fullscreen cho Video tỷ lệ 9:16 trên mọi trình duyệt */
+        /* CSS Fix Fullscreen Video 9:16 */
         .gallery-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         .gallery-video::-webkit-media-controls-enclosure { object-fit: contain !important; }
         .gallery-video:-webkit-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
         .gallery-video:-moz-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
         .gallery-video:fullscreen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        
+        /* Box Upload Image */
+        .custom-upload-area { display: flex; gap: 8px; align-items: center; }
+        .upload-thumb-wrap { position: relative; width: 44px; height: 44px; border-radius: 6px; border: 1px solid #cbd5e1; overflow: hidden; background: #f1f5f9; }
+        .upload-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .upload-thumb-del { position: absolute; top: 0; right: 0; background: rgba(220,38,38,0.9); color: white; border: none; font-size: 10px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-bottom-left-radius: 4px; }
+        
+        .smart-dropdown-item { padding: 8px 12px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 8px; font-weight: 500;}
+        .smart-dropdown-item:hover { background: #fef3c7; color: #ea580c; font-weight: bold; }
     </style>`);
 }
 
@@ -58,12 +67,11 @@ let CURRENT_MATRIX_LIMIT = 5;
 
 window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
+window.CUSTOM_IMAGES = []; // Mảng chứa base64 ảnh tự up
 
 let GLOBAL_CACHE_KEY = ""; 
 
-// Quản lý Token Frontend
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
-
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 function saveStateToCache() {
@@ -78,7 +86,8 @@ function saveStateToCache() {
         img: GLOBAL_IMAGE_URL,
         mE2: MANUAL_E2,
         mE4: MANUAL_E4,
-        limit: CURRENT_MATRIX_LIMIT
+        limit: CURRENT_MATRIX_LIMIT,
+        customImages: window.CUSTOM_IMAGES
     };
     localStorage.setItem(`macorner_state_${GLOBAL_CACHE_KEY}`, JSON.stringify(state));
 }
@@ -91,6 +100,7 @@ function loadStateFromCache(key) {
     MIX_OPTIONS_CACHE.clear();
     MANUAL_E2 = [];
     MANUAL_E4 = [];
+    window.CUSTOM_IMAGES = [];
 
     if (raw) {
         try {
@@ -106,6 +116,7 @@ function loadStateFromCache(key) {
             if (state.mE2) MANUAL_E2 = state.mE2 || [];
             if (state.mE4) MANUAL_E4 = state.mE4 || [];
             if (state.limit) CURRENT_MATRIX_LIMIT = state.limit;
+            if (state.customImages) window.CUSTOM_IMAGES = state.customImages || [];
             
             return true;
         } catch (e) {
@@ -187,6 +198,8 @@ document.getElementById('btnAnalyze').onclick = async function () {
     if (noMsg) noMsg.style.display = 'block';
     const oldPb = document.getElementById('pb-container');
     if (oldPb) oldPb.remove();
+
+    window.CUSTOM_IMAGES = []; // Reset ảnh khi chạy link mới
 
     let tempTargetCode = inputVal;
     let tempProductBase = "";
@@ -556,6 +569,128 @@ window.updateTokenDisplay = function() {
     }
 }
 
+// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION
+window.resizeImageBase64 = function(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                let scaleSize = 1;
+                if (img.width > MAX_WIDTH) scaleSize = MAX_WIDTH / img.width;
+                canvas.width = img.width * scaleSize;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+            }
+        }
+    });
+}
+
+window.handleUploadImages = async function(e) {
+    const files = Array.from(e.target.files);
+    for (let f of files) {
+        if (f.type.startsWith('image/')) {
+            const b64 = await window.resizeImageBase64(f);
+            window.CUSTOM_IMAGES.push(b64);
+        }
+    }
+    saveStateToCache();
+    window.renderCustomImagesPreview();
+    // Re-render Review view để update các thanh toolbar nếu đang mở
+    window.renderReviewView();
+};
+
+window.removeCustomImage = function(index) {
+    window.CUSTOM_IMAGES.splice(index, 1);
+    saveStateToCache();
+    window.renderCustomImagesPreview();
+    window.renderReviewView();
+};
+
+window.renderCustomImagesPreview = function() {
+    const container = document.getElementById('custom-img-preview');
+    if(container) {
+        container.innerHTML = window.CUSTOM_IMAGES.map((img, i) => `
+            <div class="upload-thumb-wrap" title="Image ${i+1}">
+                <img src="${img}">
+                <button class="upload-thumb-del" onclick="window.removeCustomImage(${i})">✕</button>
+                <div style="position:absolute; bottom:0; left:0; width:100%; background:rgba(0,0,0,0.6); color:white; font-size:9px; text-align:center; padding:2px 0;">IMG ${i+1}</div>
+            </div>
+        `).join('');
+    }
+};
+
+window.handlePromptInput = function(code, textarea) {
+    const val = textarea.value;
+    const cursor = textarea.selectionEnd;
+    const suggestBox = document.getElementById(`suggest-box-${code}`);
+    if (!suggestBox) return;
+
+    const textBefore = val.substring(0, cursor);
+    const words = textBefore.split(/[\s\n]+/);
+    const lastWord = words[words.length - 1];
+
+    if (lastWord.startsWith('@') && window.CUSTOM_IMAGES.length > 0) {
+        let html = '<div style="font-size:11px; color:#64748b; margin-bottom:4px; padding:0 4px; font-weight:bold;">Select Reference:</div>';
+        const query = lastWord.substring(1).toLowerCase().replace(/\s/g, ''); 
+        
+        let hasMatch = false;
+        window.CUSTOM_IMAGES.forEach((img, idx) => {
+            const imgId = `image${idx+1}`;
+            if (imgId.includes(query)) {
+                hasMatch = true;
+                html += `<div onclick="window.insertMention('${code}', '@${imgId}')" class="smart-dropdown-item">
+                    <img src="${img}" style="width:24px; height:24px; object-fit:cover; border-radius:4px; border:1px solid #cbd5e1;">
+                    @${imgId}
+                </div>`;
+            }
+        });
+        
+        if (hasMatch) {
+            suggestBox.innerHTML = html;
+            suggestBox.style.display = 'block';
+        } else {
+            suggestBox.style.display = 'none';
+        }
+    } else {
+        suggestBox.style.display = 'none';
+    }
+};
+
+window.insertMention = function(code, text) {
+    const textarea = document.getElementById(`prompt-textarea-${code}`);
+    if (!textarea) return;
+    const val = textarea.value;
+    const cursor = textarea.selectionEnd;
+    const textBefore = val.substring(0, cursor);
+    const lastAtPos = textBefore.lastIndexOf('@');
+    
+    const before = val.substring(0, lastAtPos); 
+    const after = val.substring(cursor);
+    
+    textarea.value = before + text + ' ' + after;
+    document.getElementById(`suggest-box-${code}`).style.display = 'none';
+    textarea.focus();
+};
+
+window.insertTextToPrompt = function(btn, text) {
+    const wrapper = btn.closest('.prompt-builder-wrapper');
+    const textarea = wrapper.querySelector('textarea');
+    if(textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        textarea.value = textarea.value.substring(0, start) + text + " " + textarea.value.substring(end);
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + text.length + 1;
+    }
+};
+
 window.renderReviewView = function() {
     const headers = document.getElementById('reviewTabHeaders');
     const contents = document.getElementById('reviewTabContents');
@@ -588,11 +723,21 @@ window.renderReviewView = function() {
         ? `<img src="${GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
-    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session">🪙 BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
+    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;">🪙 BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
+    
+    const customUploadHtml = `
+        <div style="display:flex; align-items:center; gap:12px;">
+            <div id="custom-img-preview" style="display:flex; gap:8px;"></div>
+            <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                + Add Reference Image
+                <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
+            </label>
+        </div>
+    `;
 
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
-    pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;';
+    pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
     pbContainer.innerHTML = `
         <div style="display:flex; align-items:center;">
             ${imgPreviewHtml}
@@ -602,9 +747,13 @@ window.renderReviewView = function() {
             </div>
             ${linkBadgeHtml}
         </div>
-        ${tokenDisplayHtml}
+        <div style="display:flex; align-items:center;">
+            ${tokenDisplayHtml}
+            ${customUploadHtml}
+        </div>
     `;
     headers.parentNode.insertBefore(pbContainer, headers);
+    window.renderCustomImagesPreview();
 
     const grouped = {};
     FINAL_SELECTED_CODES.forEach(item => {
@@ -640,22 +789,39 @@ window.renderReviewView = function() {
 
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
-            let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
+            let videoBtnHtml = `<button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
             
             if (videoStatus === 'generating') {
-                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;">⏳ Generating (${videoTime}s)...</button>`;
+                videoBtnHtml = `<button disabled id="video-btn-${code}" title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;">⏳ Generating (${videoTime}s)...</button>`;
             } else if (videoStatus === 'succeeded') {
                 videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;">✅ Video Ready!</button>`;
             }
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
+            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">+ @image${i+1}</button>`).join('');
+
             const ugcPromptResultContent = ugcPromptResult ? `
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
-                    <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
-                    ${videoBtnHtml}
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
+                    <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
+                    <div style="display:flex; gap:8px; margin-left:auto;">
+                        <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
+                        <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                        ${videoBtnHtml}
+                    </div>
                 </div>
+                
+                <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
+                    <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
+                    
+                    <div id="suggest-box-${code}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                    
+                    <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+                        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
+                        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+                    </div>
+                </div>
+                
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
             ` : '';
 
@@ -666,7 +832,7 @@ window.renderReviewView = function() {
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
                     </div>
-                    <div id="prompt-result-${code}" style="display: ${promptResultDisplay};">${ugcPromptResultContent}</div>
+                    <div id="prompt-result-${code}" style="display: ${promptResultDisplay}; position:relative;">${ugcPromptResultContent}</div>
                 </div>
             ` : '';
 
@@ -850,13 +1016,29 @@ window.generateShootingPrompt = async function(fullCode) {
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
         
+        const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">+ @image${i+1}</button>`).join('');
+
         resultBox.innerHTML = `
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
-                <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
-                <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
+                <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
+                <div style="display:flex; gap:8px; margin-left:auto;">
+                    <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;">✏️ Edit</button>
+                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;">📋 Copy Prompt</button>
+                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;">🎥 Generate Video</button>
+                </div>
             </div>
+            
             <div id="prompt-text-${fullCode}" class="prompt-view-box">${data.prompt}</div>
+            
+            <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
+                <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                
+                <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+                </div>
+            </div>
         `;
 
         cacheData.promptRecipient = recipientDesc;
@@ -876,19 +1058,18 @@ window.generateShootingPrompt = async function(fullCode) {
 
 window.editPrompt = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
-    const currentText = textDiv.innerText;
-    
+    const editArea = document.getElementById(`prompt-edit-area-${code}`);
+    const textarea = document.getElementById(`prompt-textarea-${code}`);
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
-    if (actionWrapper) actionWrapper.style.display = 'none';
     
-    textDiv.classList.remove('prompt-view-box');
+    if (actionWrapper) {
+        actionWrapper.querySelector('div:last-child').style.display = 'none'; // Ẩn nút Edit, Copy, GenVideo
+        actionWrapper.querySelector('.insert-img-toolbar').style.display = 'flex'; // Hiện thanh chèn nhanh ảnh
+    }
     
-    textDiv.innerHTML = `
-    <textarea id="prompt-textarea-${code}" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'">${currentText}</textarea>
-    <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
-    </div>`;
+    textDiv.style.display = 'none';
+    editArea.style.display = 'block';
+    textarea.value = textDiv.innerText;
 };
 
 window.savePromptEdit = function(code) {
@@ -896,10 +1077,11 @@ window.savePromptEdit = function(code) {
     if(!textarea) return;
     const newText = textarea.value;
     const textDiv = document.getElementById(`prompt-text-${code}`);
+    const editArea = document.getElementById(`prompt-edit-area-${code}`);
     
-    textDiv.innerHTML = '';
-    textDiv.classList.add('prompt-view-box');
     textDiv.innerText = newText; 
+    textDiv.style.display = 'block';
+    editArea.style.display = 'none';
     
     const cacheData = AI_CACHE.get(code);
     if(cacheData) {
@@ -909,20 +1091,27 @@ window.savePromptEdit = function(code) {
     }
     
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
-    if (actionWrapper) actionWrapper.style.display = 'flex';
+    if (actionWrapper) {
+        actionWrapper.querySelector('div:last-child').style.display = 'flex';
+        actionWrapper.querySelector('.insert-img-toolbar').style.display = 'none';
+    }
 };
 
 window.cancelPromptEdit = function(code) {
     const cacheData = AI_CACHE.get(code);
     const originalText = cacheData ? cacheData.shootingPrompt : '';
     const textDiv = document.getElementById(`prompt-text-${code}`);
+    const editArea = document.getElementById(`prompt-edit-area-${code}`);
     
-    textDiv.innerHTML = '';
-    textDiv.classList.add('prompt-view-box');
     textDiv.innerText = originalText;
+    textDiv.style.display = 'block';
+    editArea.style.display = 'none';
     
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
-    if (actionWrapper) actionWrapper.style.display = 'flex';
+    if (actionWrapper) {
+        actionWrapper.querySelector('div:last-child').style.display = 'flex';
+        actionWrapper.querySelector('.insert-img-toolbar').style.display = 'none';
+    }
 };
 
 window.generateVideo = async function(fullCode) {
@@ -943,13 +1132,16 @@ window.generateVideo = async function(fullCode) {
     }
 
     try {
+        const payloadParams = {
+            prompt: cacheData.shootingPrompt,
+            imageUrl: GLOBAL_IMAGE_URL,
+            customImages: window.CUSTOM_IMAGES 
+        };
+
         const res = await fetch(`${API_BASE_URL}/api/generate-video`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: cacheData.shootingPrompt,
-                imageUrl: GLOBAL_IMAGE_URL
-            })
+            body: JSON.stringify(payloadParams)
         });
 
         const data = await res.json();
@@ -998,7 +1190,8 @@ window.generateVideo = async function(fullCode) {
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
 
-                    // Lưu thẳng lên JSON trên Koyeb
+                    const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : GLOBAL_IMAGE_URL;
+
                     try {
                         await fetch(`${API_BASE_URL}/api/gallery`, {
                             method: 'POST',
@@ -1008,11 +1201,11 @@ window.generateVideo = async function(fullCode) {
                                 productBase: productBase,
                                 targetCode: GLOBAL_TARGET_CODE || fullCode.substring(0,3),
                                 videoUrl: statusData.videoUrl,
-                                imageUrl: GLOBAL_IMAGE_URL,
+                                imageUrl: coverImage,
                                 prompt: cData.shootingPrompt
                             })
                         });
-                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Gallery!`);
+                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1150,251 +1343,9 @@ window.copyScript = function(fullCode) {
 };
 
 // ==========================================
-// THIẾT LẬP LƯU TRỮ TRÊN KOYEB CLOUD (JSON)
+// SCENE GALLERY SMART FILTER LOCAL CLOUD
 // ==========================================
-window.STORE_DATA_CACHE = [];
-
-window.buildStoreUI = function() {
-    const storePane = document.getElementById('view-store');
-    if (!storePane) return; 
-
-    let listContainer = document.getElementById('store-container-wrap');
-    if (!listContainer) {
-        storePane.innerHTML = `
-            <header class="top-nav">
-                <h2>Cloud Script Store</h2>
-                <button class="btn-danger" onclick="window.clearStore()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All</button>
-            </header>
-            <section class="card" id="store-container-wrap">
-                <div id="store-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
-                    <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()" style="flex:1; min-width:200px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
-                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
-                        <option value="newest">Newest first</option>
-                        <option value="oldest">Oldest first</option>
-                        <option value="code">By code A–Z</option>
-                    </select>
-                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:13px; font-weight:bold; color:#d97706; background:#fef3c7; padding:6px 12px; border-radius:6px; border:1px solid #fde68a;">
-                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c;">
-                        ⭐ Favorites Only
-                    </label>
-                </div>
-                <div id="store-count" style="font-size:13px; color:#64748b; margin-bottom:12px;"></div>
-                <div id="store-list" style="min-height: 100px;"></div>
-                <div id="store-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none;">No scripts saved yet.</div>
-            </section>
-        `;
-    }
-};
-
-window.renderStore = async function() {
-    window.buildStoreUI();
-    const listDiv = document.getElementById('store-list');
-    if(!listDiv) return;
-
-    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
-    
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
-        let store = await res.json();
-        window.STORE_DATA_CACHE = store;
-        window.currentStoreFilter = 'all'; 
-        window.updateStoreUI();
-    } catch (e) {
-        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
-    }
-}
-
-window.updateStoreUI = function() {
-    const listDiv = document.getElementById('store-list');
-    const emptyDiv = document.getElementById('store-empty');
-    const countDiv = document.getElementById('store-count');
-    
-    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
-    const sortVal = document.getElementById('store-sort')?.value || "newest";
-    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
-
-    if(!listDiv) return;
-
-    let filtered = window.STORE_DATA_CACHE.filter(s => {
-        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        if (isFavOnly && !s.isFavorite) return false;
-        
-        return s.code.toLowerCase().includes(searchVal) || 
-               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
-               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
-    });
-
-    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
-    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
-    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) FOUND ON CLOUD`;
-
-    if (filtered.length === 0) {
-        listDiv.innerHTML = '';
-        if(emptyDiv) emptyDiv.style.display = 'block';
-        return;
-    }
-
-    if(emptyDiv) emptyDiv.style.display = 'none';
-
-    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
-    window.STORE_DATA_CACHE.forEach(s => {
-        const tc = s.targetCode || 'OTHER';
-        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
-    });
-
-    let sidebarHtml = `<div style="min-width: 140px; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; gap: 8px;">
-            <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-                ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
-            </div>`;
-
-    Object.keys(groupCounts).forEach(tc => {
-        if (tc === 'ALL') return;
-        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
-        sidebarHtml += `
-            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #ffedd5; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
-                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
-            </div>
-        `;
-    });
-    sidebarHtml += `</div>`;
-
-    let cardsHtml = `<div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">`;
-    
-    filtered.forEach(s => {
-        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const dateStr = new Date(s.date).toLocaleString();
-        
-        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
-        const starFill = s.isFavorite ? '★' : '☆';
-        
-        cardsHtml += `
-            <div style="background:#fff; border:1px solid ${s.isFavorite ? '#fde68a' : '#e2e8f0'}; border-radius:8px; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;">
-                <div style="position:absolute; top:15px; left:15px;">
-                    <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:24px; color:${starColor}; padding:0; line-height:1; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${starFill}</button>
-                </div>
-                <div style="margin-left: 35px;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                        <div>
-                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                                <span style="font-size:16px; font-weight:800; color:#ea580c;">${s.code}</span>
-                                <span style="font-size:11px; background:#fff7ed; padding:3px 8px; border-radius:12px; color:#c2410c; border: 1px solid #ffedd5; font-weight: bold;">${s.productBase}</span>
-                            </div>
-                            <div style="font-size:12px; color:#94a3b8; font-weight:500;">
-                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:8px;">
-                            <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy', 2000);" style="background:#f8fafc; border:1px solid #cbd5e1; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#475569;">📋 Copy</button>
-                            <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#166534;">⬇ Download</button>
-                            <button onclick="window.deleteScript('${s.id}')" style="background:#fef2f2; border:1px solid #fca5a5; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#dc2626;" title="Xóa khỏi Server">🗑️</button>
-                        </div>
-                    </div>
-                    <div style="background:#f8fafc; padding:12px; border-radius:6px; font-size:13px; line-height:1.6; color:#475569; max-height:200px; overflow-y:auto; border:1px solid #f1f5f9; white-space:pre-wrap;">${s.content}</div>
-                </div>
-            </div>
-        `;
-    });
-    cardsHtml += `</div>`;
-
-    listDiv.innerHTML = `<div style="display: flex; gap: 20px; align-items: flex-start;">${sidebarHtml}${cardsHtml}</div>`;
-}
-
-window.toggleFavorite = async function(id) {
-    try {
-        const item = window.STORE_DATA_CACHE.find(s => s.id === id);
-        if(item) {
-            item.isFavorite = !item.isFavorite;
-            window.updateStoreUI();
-        }
-        await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
-    } catch(e) {
-        alert("Lỗi khi cập nhật Cloud!");
-    }
-}
-
-window.saveScript = async function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return;
-    
-    const productBase = GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
-    let finalContent = cacheData.rawScript;
-    
-    if (cacheData.shootingPrompt) {
-        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
-    }
-
-    const btn = document.getElementById(`save-btn-${fullCode}`);
-    if (btn) {
-        btn.innerText = "⏳ Saving...";
-        btn.disabled = true;
-    }
-
-    try {
-        const payload = {
-            code: fullCode,
-            productBase: productBase,
-            targetCode: GLOBAL_TARGET_CODE || fullCode,
-            content: finalContent
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/store`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error("Failed to save");
-        
-        if (btn) {
-            btn.innerText = "✅ Saved!";
-            setTimeout(() => { btn.innerText = "💾 Save"; btn.disabled = false; }, 2000);
-        }
-        
-        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
-            window.renderStore();
-        }
-    } catch (e) {
-        console.error("Lỗi:", e);
-        alert("Có lỗi khi lưu lên Cloud. Vui lòng thử lại!");
-        if (btn) { btn.innerText = "💾 Save"; btn.disabled = false; }
-    }
-};
-
-window.deleteScript = async function(id) {
-    if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;
-    try {
-        window.STORE_DATA_CACHE = window.STORE_DATA_CACHE.filter(s => s.id !== id);
-        window.updateStoreUI();
-        await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
-    } catch(e) { alert("Lỗi khi xóa!"); }
-}
-
-window.clearStore = async function() {
-    if(!confirm("⚠️ CẢNH BÁO: Xóa TẤT CẢ kịch bản? Dữ liệu toàn cầu sẽ biến mất!")) return;
-    try {
-        window.STORE_DATA_CACHE = [];
-        window.updateStoreUI();
-        await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
-    } catch(e) { alert("Lỗi khi xóa!"); }
-}
-
-window.downloadText = function(code, content) {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${code}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-}
-
-// =====================================================================
-// MỚI: SCENE GALLERY ĐỒNG BỘ LOCAL KOYEB VỚI MULTI-FILTER VÀ SIDEBAR
-// =====================================================================
 window.GALLERY_DATA_CACHE = [];
-window.galleryFilters = { pb: 'all', niche: 'all', idea: 'all' };
 
 window.buildGalleryUI = function() {
     const galleryPane = document.getElementById('view-gallery');
@@ -1410,9 +1361,13 @@ window.buildGalleryUI = function() {
             <section class="card" id="gallery-container-wrap">
                 <div id="gallery-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
                     <strong style="color:#64748b; font-size:13px; margin-right:10px;">LỌC:</strong>
-                    <select id="gal-pb-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:150px; outline:none;"><option value="all">All Product Bases</option></select>
-                    <select id="gal-niche-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px; outline:none;"><option value="all">All Niches</option></select>
-                    <select id="gal-idea-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px; outline:none;"><option value="all">All Ideas</option></select>
+                    <select id="smart-filter-type" onchange="window.updateSmartDatalist()" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:140px; outline:none;">
+                        <option value="pb">Product Base</option>
+                        <option value="niche">Niche (3 ký tự đầu)</option>
+                        <option value="idea">Idea (2 ký tự cuối)</option>
+                    </select>
+                    <input type="text" id="smart-filter-input" list="smart-filter-list" placeholder="Chọn loại lọc và gõ để tìm..." oninput="window.updateGalleryUI()" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; flex:1; min-width:200px; outline:none;">
+                    <datalist id="smart-filter-list"></datalist>
                 </div>
                 <div style="display:flex; gap:20px; align-items:flex-start;">
                     <div id="gallery-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
@@ -1436,66 +1391,53 @@ window.renderGalleryView = async function() {
         let gallery = await res.json();
         window.GALLERY_DATA_CACHE = gallery;
         window.currentGalleryTarget = 'all'; 
-        window.updateGalleryUI(false);
+        
+        window.updateSmartDatalist();
+        window.updateGalleryUI();
     } catch (e) {
         gridDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Gallery: ${e.message}</span>`;
     }
 };
 
-window.updateGalleryUI = function(isFromDropdown = false) {
+window.updateSmartDatalist = function() {
+    const type = document.getElementById('smart-filter-type')?.value;
+    const datalist = document.getElementById('smart-filter-list');
+    if(!datalist || !type) return;
+
+    let set = new Set();
+    window.GALLERY_DATA_CACHE.forEach(item => {
+        const tc = item.targetCode || "";
+        const pb = item.productBase || "";
+        if (type === 'pb' && pb) set.add(pb);
+        if (type === 'niche' && tc.length >= 3) set.add(tc.substring(0,3).toUpperCase());
+        if (type === 'idea' && tc.length >= 2) set.add(tc.substring(tc.length-2).toUpperCase());
+    });
+
+    datalist.innerHTML = Array.from(set).sort().map(val => `<option value="${val}">`).join('');
+    
+    const input = document.getElementById('smart-filter-input');
+    if (input) {
+        input.value = '';
+        window.updateGalleryUI();
+    }
+};
+
+window.updateGalleryUI = function() {
     const gridDiv = document.getElementById('gallery-grid');
     const sidebarDiv = document.getElementById('gallery-sidebar');
     const emptyDiv = document.getElementById('gallery-empty');
     
-    if (isFromDropdown) {
-        window.galleryFilters.pb = document.getElementById('gal-pb-filter')?.value || 'all';
-        window.galleryFilters.niche = document.getElementById('gal-niche-filter')?.value || 'all';
-        window.galleryFilters.idea = document.getElementById('gal-idea-filter')?.value || 'all';
-    }
-
-    let filtered = window.GALLERY_DATA_CACHE.filter(item => {
-        const code = item.code || item.fullCode || "";
-        const niche = code.length >= 3 ? code.substring(0,3).toUpperCase() : "";
-        const idea = code.length >= 10 ? code.substring(8,10).toUpperCase() : "";
-        const pb = item.productBase || "";
-
-        if (window.currentGalleryTarget !== 'all' && item.targetCode !== window.currentGalleryTarget) return false;
-        if (window.galleryFilters.pb !== 'all' && pb !== window.galleryFilters.pb) return false;
-        if (window.galleryFilters.niche !== 'all' && niche !== window.galleryFilters.niche) return false;
-        if (window.galleryFilters.idea !== 'all' && idea !== window.galleryFilters.idea) return false;
-
-        return true;
-    });
-
-    if (!isFromDropdown) {
-        let pbSet = new Set(), nicheSet = new Set(), ideaSet = new Set();
-        window.GALLERY_DATA_CACHE.forEach(item => {
-            const code = item.code || item.fullCode || "";
-            if(item.productBase) pbSet.add(item.productBase);
-            if(code.length >= 3) nicheSet.add(code.substring(0,3).toUpperCase());
-            if(code.length >= 10) ideaSet.add(code.substring(8,10).toUpperCase());
-        });
-
-        const popSelect = (id, set, def) => {
-            const el = document.getElementById(id);
-            if(!el) return;
-            el.innerHTML = `<option value="all">${def}</option>` + Array.from(set).sort().map(val => `<option value="${val}">${val}</option>`).join('');
-            el.value = 'all';
-        };
-        popSelect('gal-pb-filter', pbSet, 'All Product Bases');
-        popSelect('gal-niche-filter', nicheSet, 'All Niches');
-        popSelect('gal-idea-filter', ideaSet, 'All Ideas');
-    }
+    const type = document.getElementById('smart-filter-type')?.value;
+    const searchVal = document.getElementById('smart-filter-input')?.value.trim().toUpperCase();
 
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
-        const code = item.code || item.fullCode || "";
-        const niche = code.length >= 3 ? code.substring(0,3).toUpperCase() : "";
-        const idea = code.length >= 10 ? code.substring(8,10).toUpperCase() : "";
-        const pb = item.productBase || "";
-
-        if (window.galleryFilters.pb !== 'all' && pb !== window.galleryFilters.pb) return false;
-        if (window.galleryFilters.niche !== 'all' && niche !== window.galleryFilters.niche) return false;
-        if (window.galleryFilters.idea !== 'all' && idea !== window.galleryFilters.idea) return false;
+        if (!searchVal) return true;
+        const tc = item.targetCode || "";
+        const pb = (item.productBase || "").toUpperCase();
+        
+        if (type === 'pb') return pb.includes(searchVal);
+        if (type === 'niche') return tc.substring(0,3).toUpperCase().includes(searchVal);
+        if (type === 'idea') return tc.length >= 2 && tc.substring(tc.length-2).toUpperCase().includes(searchVal);
         return true;
     });
 
@@ -1506,7 +1448,7 @@ window.updateGalleryUI = function(isFromDropdown = false) {
     });
 
     let sidebarHtml = `
-        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI(false)" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #0ea5e9; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #0ea5e9; color: white;' : 'background: #f8fafc; color: #64748b;'}">
             ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
@@ -1514,14 +1456,19 @@ window.updateGalleryUI = function(isFromDropdown = false) {
         if (tc === 'ALL') return;
         const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
         sidebarHtml += `
-            <div onclick="window.currentGalleryTarget='${tc}'; window.updateGalleryUI(false)" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === tc ? 'background: #e0f2fe; border-left: 4px solid #0ea5e9; color: #0ea5e9;' : 'color: #94a3b8;'}">
+            <div onclick="window.currentGalleryTarget='${tc}'; window.updateGalleryUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === tc ? 'background: #e0f2fe; border-left: 4px solid #0ea5e9; color: #0ea5e9;' : 'color: #94a3b8;'}">
                 ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
             </div>
         `;
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
-    if (filtered.length === 0) {
+    let finalFiltered = preFiltered.filter(item => {
+        if (window.currentGalleryTarget === 'all') return true;
+        return item.targetCode === window.currentGalleryTarget;
+    });
+
+    if (finalFiltered.length === 0) {
         if (gridDiv) gridDiv.innerHTML = '';
         if(emptyDiv) emptyDiv.style.display = 'block';
         return;
@@ -1529,8 +1476,9 @@ window.updateGalleryUI = function(isFromDropdown = false) {
     if(emptyDiv) emptyDiv.style.display = 'none';
 
     let cardsHtml = '';
-    filtered.forEach(data => {
+    finalFiltered.forEach(data => {
         const fullC = data.code || data.fullCode;
+        const targetC = data.targetCode || fullC.substring(0,3);
         const mediaHtml = data.videoUrl
             ? `<video class="gallery-video" src="${data.videoUrl}" controls controlsList="nodownload" preload="metadata" poster="${data.imageUrl || ''}"></video>`
             : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: contain; background:#000;"></a>`;
@@ -1542,8 +1490,11 @@ window.updateGalleryUI = function(isFromDropdown = false) {
                     ${mediaHtml}
                 </div>
                 <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #0ea5e9;">Code: ${fullC}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-weight: 600;" title="${data.productBase}">${data.productBase}</p>
+                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #0ea5e9; text-transform: uppercase;">Mẫu: ${targetC}</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; line-height:1.4;" title="${data.productBase}">
+                        <b>Product Base:</b> <span style="text-transform:uppercase;">${data.productBase}</span><br>
+                        <b>Video Code:</b> ${fullC}
+                    </p>
                     <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
                 </div>
             </div>
@@ -1575,7 +1526,7 @@ window.deleteGalleryItem = async function(id) {
     if(!confirm("Xóa video này khỏi Cloud Gallery?")) return;
     try {
         window.GALLERY_DATA_CACHE = window.GALLERY_DATA_CACHE.filter(s => s.id !== id);
-        window.updateGalleryUI(false);
+        window.updateGalleryUI();
         await fetch(`${API_BASE_URL}/api/gallery/${id}`, { method: 'DELETE' });
     } catch(e) { alert("Lỗi khi xóa!"); }
 };
@@ -1584,7 +1535,7 @@ window.clearGallery = async function() {
     if(!confirm("⚠️ CẢNH BÁO: Xóa toàn bộ Video trong Gallery Local?")) return;
     try {
         window.GALLERY_DATA_CACHE = [];
-        window.updateGalleryUI(false);
+        window.updateGalleryUI();
         await fetch(`${API_BASE_URL}/api/gallery`, { method: 'DELETE' });
     } catch(e) { alert("Lỗi khi Clear Gallery!"); }
 };

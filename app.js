@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V60 (Cloud Sync Gallery, Token UI, Fullscreen 9:16 Fix)
+ * FULL AUTO V60 (Cloud Local Store & Gallery, Token UI, Fullscreen 9:16 Fix, Sidebar Filters)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -27,12 +27,12 @@ if (!document.getElementById('modern-ui-styles')) {
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* CSS Fix Fullscreen cho Video tỷ lệ 9:16 */
+        /* CSS Fix Fullscreen cho Video tỷ lệ 9:16 trên mọi trình duyệt */
         .gallery-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         .gallery-video::-webkit-media-controls-enclosure { object-fit: contain !important; }
-        .gallery-video:-webkit-full-screen { object-fit: contain !important; background: #000; }
-        .gallery-video:-moz-full-screen { object-fit: contain !important; background: #000; }
-        .gallery-video:fullscreen { object-fit: contain !important; background: #000; }
+        .gallery-video:-webkit-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        .gallery-video:-moz-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        .gallery-video:fullscreen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
     </style>`);
 }
 
@@ -925,21 +925,15 @@ window.cancelPromptEdit = function(code) {
     if (actionWrapper) actionWrapper.style.display = 'flex';
 };
 
-// =====================================================================
-// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
-// =====================================================================
-
 window.generateVideo = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     AI_CACHE.set(fullCode, cacheData);
     saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -964,7 +958,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -972,7 +965,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -987,7 +979,6 @@ window.generateVideo = async function(fullCode) {
                     cData.videoGenStatus = 'succeeded';
                     AI_CACHE.set(fullCode, cData);
                     
-                    // Cập nhật Token UI
                     if (statusData.usage && statusData.usage > 0) {
                         window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
                         localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
@@ -1007,7 +998,7 @@ window.generateVideo = async function(fullCode) {
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
 
-                    // Đẩy dữ liệu mới sinh lên thẳng Lark Base Gallery
+                    // Lưu thẳng lên JSON trên Koyeb
                     try {
                         await fetch(`${API_BASE_URL}/api/gallery`, {
                             method: 'POST',
@@ -1046,7 +1037,7 @@ window.generateVideo = async function(fullCode) {
                 console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 AI_CACHE.set(fullCode, cData);
@@ -1159,8 +1150,10 @@ window.copyScript = function(fullCode) {
 };
 
 // ==========================================
-// STORE DATA LARK BASE
+// THIẾT LẬP LƯU TRỮ TRÊN KOYEB CLOUD (JSON)
 // ==========================================
+window.STORE_DATA_CACHE = [];
+
 window.buildStoreUI = function() {
     const storePane = document.getElementById('view-store');
     if (!storePane) return; 
@@ -1398,7 +1391,7 @@ window.downloadText = function(code, content) {
 }
 
 // =====================================================================
-// MỚI: SCENE GALLERY ĐỒNG BỘ CLOUD VỚI MULTI-FILTER VÀ SIDEBAR
+// MỚI: SCENE GALLERY ĐỒNG BỘ LOCAL KOYEB VỚI MULTI-FILTER VÀ SIDEBAR
 // =====================================================================
 window.GALLERY_DATA_CACHE = [];
 window.galleryFilters = { pb: 'all', niche: 'all', idea: 'all' };
@@ -1412,17 +1405,18 @@ window.buildGalleryUI = function() {
         galleryPane.innerHTML = `
             <header class="top-nav">
                 <h2>Cloud Scene Gallery</h2>
+                <button class="btn-danger" onclick="window.clearGallery()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All Gallery</button>
             </header>
             <section class="card" id="gallery-container-wrap">
                 <div id="gallery-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
                     <strong style="color:#64748b; font-size:13px; margin-right:10px;">LỌC:</strong>
-                    <select id="gal-pb-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:150px;"><option value="all">All Product Bases</option></select>
-                    <select id="gal-niche-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px;"><option value="all">All Niches</option></select>
-                    <select id="gal-idea-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px;"><option value="all">All Ideas (E5)</option></select>
+                    <select id="gal-pb-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:150px; outline:none;"><option value="all">All Product Bases</option></select>
+                    <select id="gal-niche-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px; outline:none;"><option value="all">All Niches</option></select>
+                    <select id="gal-idea-filter" onchange="window.updateGalleryUI(true)" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:120px; outline:none;"><option value="all">All Ideas</option></select>
                 </div>
                 <div style="display:flex; gap:20px; align-items:flex-start;">
                     <div id="gallery-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
-                    <div id="gallery-grid" class="gallery-grid"></div>
+                    <div id="gallery-grid" class="gallery-grid" style="display:flex; flex-wrap:wrap; gap:20px; flex:1;"></div>
                 </div>
                 <div id="gallery-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none; width:100%;">No videos in Cloud Gallery yet.</div>
             </section>
@@ -1435,13 +1429,13 @@ window.renderGalleryView = async function() {
     const gridDiv = document.getElementById('gallery-grid');
     if(!gridDiv) return;
 
-    gridDiv.innerHTML = "<p style='color:#999; padding:40px; width:100%; text-align:center;'>⏳ Đang tải dữ liệu Gallery từ Cloud...</p>";
+    gridDiv.innerHTML = "<p style='color:#999; padding:40px; width:100%; text-align:center;'>⏳ Đang tải dữ liệu Gallery từ Cloud Local...</p>";
     
     try {
         const res = await fetch(`${API_BASE_URL}/api/gallery?t=${Date.now()}`);
         let gallery = await res.json();
         window.GALLERY_DATA_CACHE = gallery;
-        window.currentGalleryTarget = 'all'; // Biến dùng cho Sidebar
+        window.currentGalleryTarget = 'all'; 
         window.updateGalleryUI(false);
     } catch (e) {
         gridDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Gallery: ${e.message}</span>`;
@@ -1453,18 +1447,16 @@ window.updateGalleryUI = function(isFromDropdown = false) {
     const sidebarDiv = document.getElementById('gallery-sidebar');
     const emptyDiv = document.getElementById('gallery-empty');
     
-    // Nếu có tác động từ Select box thì lấy giá trị lọc mới
     if (isFromDropdown) {
         window.galleryFilters.pb = document.getElementById('gal-pb-filter')?.value || 'all';
         window.galleryFilters.niche = document.getElementById('gal-niche-filter')?.value || 'all';
         window.galleryFilters.idea = document.getElementById('gal-idea-filter')?.value || 'all';
     }
 
-    // Tiến hành lọc dữ liệu
     let filtered = window.GALLERY_DATA_CACHE.filter(item => {
         const code = item.code || item.fullCode || "";
-        const niche = code.length >= 3 ? code.substring(0,3) : "";
-        const idea = code.length >= 10 ? code.substring(8,10) : "";
+        const niche = code.length >= 3 ? code.substring(0,3).toUpperCase() : "";
+        const idea = code.length >= 10 ? code.substring(8,10).toUpperCase() : "";
         const pb = item.productBase || "";
 
         if (window.currentGalleryTarget !== 'all' && item.targetCode !== window.currentGalleryTarget) return false;
@@ -1475,14 +1467,13 @@ window.updateGalleryUI = function(isFromDropdown = false) {
         return true;
     });
 
-    // Tạo Dropdown cho lần chạy đầu tiên (isFromDropdown = false)
     if (!isFromDropdown) {
         let pbSet = new Set(), nicheSet = new Set(), ideaSet = new Set();
         window.GALLERY_DATA_CACHE.forEach(item => {
             const code = item.code || item.fullCode || "";
             if(item.productBase) pbSet.add(item.productBase);
-            if(code.length >= 3) nicheSet.add(code.substring(0,3));
-            if(code.length >= 10) ideaSet.add(code.substring(8,10));
+            if(code.length >= 3) nicheSet.add(code.substring(0,3).toUpperCase());
+            if(code.length >= 10) ideaSet.add(code.substring(8,10).toUpperCase());
         });
 
         const popSelect = (id, set, def) => {
@@ -1493,15 +1484,15 @@ window.updateGalleryUI = function(isFromDropdown = false) {
         };
         popSelect('gal-pb-filter', pbSet, 'All Product Bases');
         popSelect('gal-niche-filter', nicheSet, 'All Niches');
-        popSelect('gal-idea-filter', ideaSet, 'All Ideas (E5)');
+        popSelect('gal-idea-filter', ideaSet, 'All Ideas');
     }
 
-    // Render Sidebar Group By Target Code
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
         const code = item.code || item.fullCode || "";
-        const niche = code.length >= 3 ? code.substring(0,3) : "";
-        const idea = code.length >= 10 ? code.substring(8,10) : "";
+        const niche = code.length >= 3 ? code.substring(0,3).toUpperCase() : "";
+        const idea = code.length >= 10 ? code.substring(8,10).toUpperCase() : "";
         const pb = item.productBase || "";
+
         if (window.galleryFilters.pb !== 'all' && pb !== window.galleryFilters.pb) return false;
         if (window.galleryFilters.niche !== 'all' && niche !== window.galleryFilters.niche) return false;
         if (window.galleryFilters.idea !== 'all' && idea !== window.galleryFilters.idea) return false;
@@ -1530,7 +1521,6 @@ window.updateGalleryUI = function(isFromDropdown = false) {
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
-    // Hiển thị Grid Thẻ Video
     if (filtered.length === 0) {
         if (gridDiv) gridDiv.innerHTML = '';
         if(emptyDiv) emptyDiv.style.display = 'block';
@@ -1546,9 +1536,9 @@ window.updateGalleryUI = function(isFromDropdown = false) {
             : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: contain; background:#000;"></a>`;
 
         cardsHtml += `
-            <div class="gallery-card">
+            <div class="gallery-card" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
                 <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; position:relative;">
-                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:4px; color:#dc2626; cursor:pointer; font-size:14px; padding:4px 6px; z-index:10;" title="Xóa khỏi Cloud">🗑️</button>
+                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:4px; color:#dc2626; cursor:pointer; font-size:14px; padding:4px 6px; z-index:10;" title="Xóa khỏi Cloud Local">🗑️</button>
                     ${mediaHtml}
                 </div>
                 <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
@@ -1588,4 +1578,13 @@ window.deleteGalleryItem = async function(id) {
         window.updateGalleryUI(false);
         await fetch(`${API_BASE_URL}/api/gallery/${id}`, { method: 'DELETE' });
     } catch(e) { alert("Lỗi khi xóa!"); }
+};
+
+window.clearGallery = async function() {
+    if(!confirm("⚠️ CẢNH BÁO: Xóa toàn bộ Video trong Gallery Local?")) return;
+    try {
+        window.GALLERY_DATA_CACHE = [];
+        window.updateGalleryUI(false);
+        await fetch(`${API_BASE_URL}/api/gallery`, { method: 'DELETE' });
+    } catch(e) { alert("Lỗi khi Clear Gallery!"); }
 };

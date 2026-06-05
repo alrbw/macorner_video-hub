@@ -25,68 +25,6 @@ app.use(express.json({ limit: '50mb' }));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ==========================================
-// CLOUD SCRIPT STORE
-// ==========================================
-const STORE_FILE = path.join(__dirname, 'scripts_store.json');
-
-function readStore() {
-    if (!fs.existsSync(STORE_FILE)) return [];
-    try { 
-        return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); 
-    } catch(e) { 
-        return []; 
-    }
-}
-
-function writeStore(data) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-app.get('/api/store', (req, res) => {
-    res.json(readStore());
-});
-
-app.post('/api/store', (req, res) => {
-    try {
-        const store = readStore();
-        const newScript = { 
-            id: Date.now().toString(), 
-            code: req.body.code || req.body.fullCode,
-            productBase: req.body.productBase || req.body.product,
-            targetCode: req.body.targetCode,
-            content: req.body.content,
-            date: new Date().toISOString() 
-        };
-        store.unshift(newScript);
-        writeStore(store);
-        res.json({ success: true, item: newScript });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi ghi file Store: " + e.message });
-    }
-});
-
-app.delete('/api/store', (req, res) => {
-    try {
-        writeStore([]);
-        res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
-    }
-});
-
-app.delete('/api/store/:id', (req, res) => {
-    try {
-        let store = readStore();
-        store = store.filter(s => s.id !== req.params.id);
-        writeStore(store);
-        res.json({ success: true });
-    } catch(e) {
-        res.status(500).json({ error: "Lỗi xóa file Store: " + e.message });
-    }
-});
-// ==========================================
-
 async function getLarkToken() {
     const res = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', {
         app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET
@@ -94,27 +32,126 @@ async function getLarkToken() {
     return res.data.tenant_access_token;
 }
 
-async function fetchImageAsBase64(url) {
+// =====================================================================
+// CLOUD SCRIPT STORE DỰA TRÊN NỀN TẢNG LARK BASE
+// =====================================================================
+
+app.get('/api/store', async (req, res) => {
     try {
-        if (!url) return null;
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
-            },
-            timeout: 10000
-        });
-
-        const mimeType = response.headers['content-type'] || '';
-        if (!mimeType.startsWith('image/')) return null;
-
-        const base64 = Buffer.from(response.data).toString('base64');
-        return `data:${mimeType};base64,${base64}`;
-    } catch (err) {
-        return null;
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
+        
+        const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        const store = items.map(item => ({
+            id: item.record_id,
+            code: item.fields['Code'] || "",
+            productBase: item.fields['Product Base'] || "",
+            targetCode: item.fields['Target Code'] || "",
+            content: item.fields['Content'] || "",
+            isFavorite: !!item.fields['Is Favorite'],
+            date: item.fields['Date'] || new Date().toISOString()
+        }));
+        
+        store.sort((a, b) => new Date(b.date) - new Date(a.date));
+        res.json(store);
+    } catch(e) {
+        console.error("Lỗi GET Store từ Lark:", e.message);
+        res.status(500).json({ error: "Không thể lấy dữ liệu kịch bản từ Lark: " + e.message });
     }
-}
+});
+
+app.post('/api/store', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records`;
+        
+        const fields = {
+            "Code": req.body.code || req.body.fullCode || "",
+            "Product Base": req.body.productBase || req.body.product || "Personalized Custom Gift",
+            "Target Code": req.body.targetCode || "",
+            "Content": req.body.content || "",
+            "Is Favorite": false,
+            "Date": new Date().toISOString()
+        };
+
+        const response = await axios.post(larkUrl, { fields }, { headers: { 'Authorization': `Bearer ${token}` } });
+        const newRecord = response.data?.data?.record;
+        
+        res.json({ 
+            success: true, 
+            item: {
+                id: newRecord?.record_id || Date.now().toString(),
+                ...fields
+            } 
+        });
+    } catch(e) {
+        console.error("Lỗi POST Store lên Lark:", e.message);
+        res.status(500).json({ error: "Không thể ghi kịch bản lên Lark Base: " + e.message });
+    }
+});
+
+app.patch('/api/store/:id/favorite', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const token = await getLarkToken();
+        
+        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        const recordRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const currentFields = recordRes.data?.data?.record?.fields || {};
+        const currentFav = !!currentFields['Is Favorite'];
+        
+        const patchUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        await axios.patch(patchUrl, {
+            fields: { "Is Favorite": !currentFav }
+        }, { headers: { 'Authorization': `Bearer ${token}` } });
+        
+        res.json({ success: true, isFavorite: !currentFav });
+    } catch(e) {
+        console.error("Lỗi PATCH Favorite lên Lark:", e.message);
+        res.status(500).json({ error: "Không thể đổi trạng thái yêu thích: " + e.message });
+    }
+});
+
+app.delete('/api/store/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const token = await getLarkToken();
+        const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/${id}`;
+        
+        await axios.delete(larkUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        res.json({ success: true });
+    } catch(e) {
+        console.error("Lỗi DELETE đơn kịch bản:", e.message);
+        res.status(500).json({ error: "Không thể xóa kịch bản này trên Lark: " + e.message });
+    }
+});
+
+app.delete('/api/store', async (req, res) => {
+    try {
+        const token = await getLarkToken();
+        
+        const getUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records?page_size=500`;
+        const recordsRes = await axios.get(getUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        const items = recordsRes.data?.data?.items || [];
+        
+        if (items.length > 0) {
+            const recordIds = items.map(i => i.record_id);
+            const deleteUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.STORE_TABLE_ID}/records/batch_delete`;
+            await axios.post(deleteUrl, { records: recordIds }, { headers: { 'Authorization': `Bearer ${token}` } });
+        }
+        
+        res.json({ success: true });
+    } catch(e) {
+        console.error("Lỗi DELETE toàn bộ kịch bản:", e.message);
+        res.status(500).json({ error: "Không thể dọn sạch bảng lưu trữ kịch bản trên Lark: " + e.message });
+    }
+});
+
+// =====================================================================
+// PHÂN TÍCH SẢN PHẨM & TẠO SCRIPT
+// =====================================================================
 
 app.post('/api/analyze-link', async (req, res) => {
     try {
@@ -275,15 +312,35 @@ app.post('/api/generate-script', async (req, res) => {
         let e4Name = String(getEDataName('e4')); let e4Exp = String(getEDataExp('e4'));
         let e5Name = String(getEDataName('e5')); let e5Exp = String(getEDataExp('e5'));
 
-        const e4 = fullCode.substring(6, 8);
+        // Đảm bảo buyer và receiver luôn được khởi tạo an toàn
         let insightName = String(e4Name);
+        let buyer = "The Viewer";
+        let receiver = "The Gift Recipient";
         
-        // Điều kiện phân tách luồng
-        let isSelfGift = e4 === "00" || insightName.toLowerCase().includes("self-gift") || insightName.toLowerCase().includes("self gift");
+        let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
+        if (match) { 
+            receiver = match[1].trim(); 
+            buyer = match[2].trim(); 
+        } else { 
+            let fMatch = insightName.match(/for\s+(.*)/i); 
+            if (fMatch) { 
+                receiver = fMatch[1].trim(); 
+                buyer = `Anyone buying for ${receiver}`; 
+            } 
+        }
 
-        // Tone Instruction (Dùng chung cho cả 2 luồng)
+        let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+        let e2Check = String(e2Group + " " + e2Name).toLowerCase();
+        
+        if (e2Check.includes("buyer")) {
+            povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+        } else if (e2Check.includes("receiver")) {
+            povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+        }
+
         let toneInstruction = "Engaging, authentic, and native to short-form videos.";
         let e1Lower = String(e1Name).toLowerCase();
+        
         if (e1Lower.includes("funny") || e1Lower.includes("meme")) {
             toneInstruction = "Humorous, trendy, and lighthearted. Keep this fun vibe consistent throughout the entire video.";
         } else if (e1Lower.includes("ragebait") || e1Lower.includes("shock")) {
@@ -298,81 +355,9 @@ app.post('/api/generate-script', async (req, res) => {
 
         const elementsContext = `E1: ${e1Name} - ${e1Exp}\nE2: ${e2Name} - ${e2Exp}\nE3: ${e3Name} - ${e3Exp}\nE4: ${e4Name} - ${e4Exp}\nE5: ${e5Name} - ${e5Exp}`;
 
-        let systemRole = "";
-        let textPrompt = "";
-
-        // ==========================================
-        // LUỒNG 1: CHUYÊN BIỆT CHO SELF-GIFT (TỰ MUA)
-        // ==========================================
-        if (isSelfGift) {
-            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
-            
-            textPrompt = `
-You are an expert short-form video scriptwriter (TikTok/Reels/Shorts).
-
-TARGET DURATION: 20 to 25 seconds.
-PRODUCT NAME: "${productBase || 'N/A'}"
-
-=== WARNING: CRITICAL CONTEXT ===
-The product details below might contain keywords like "gifts for dad", "perfect for grandpa", "for mom", etc. YOU MUST ABSOLUTELY IGNORE THOSE KEYWORDS. 
-The scenario is STRICTLY SELF-PURCHASE. The speaker in the video bought this item purely as a treat or reward for THEMSELVES. 
-
-${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
-${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
-
-=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
-1. POINT OF VIEW (POV): SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF, how it benefits YOU, or why YOU deserved a treat. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, GRANDPA, WIFE, OR ANYONE ELSE.
-2. TONE OF VOICE: ${toneInstruction} -> Keep this 100% consistent.
-
-=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
-You must structure the script based on the following requested elements. Execute them EXACTLY as described, but ADAPT THEM TO THE SELF-PURCHASE CONTEXT:
-
-1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
-   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence. Frame it around a personal realization, self-care, or treating oneself. NO GIFTING OTHERS.
-
-2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
-   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle. Focus purely on why YOU bought it for YOURSELF and your personal reaction/use.
-
-3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
-   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
-   -> Rule: End the script following this exact CTA intent. Encourage the viewer to treat themselves, upgrade their own life, or buy it for their own joy.
-
-ADDITIONAL CONTEXT FOR ELEMENTS:
-${elementsContext}
-
-=== IMAGE GUIDELINES (if an image is provided) ===
-- Describe only general visual attributes: colors, materials, textures, shapes, layout.
-- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
-
-=== OUTPUT FORMAT ===
-- Divide the script into short scenes with timestamps.
-- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: [0:00-0:03] Your sentence here.
-- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
-`;
-        } 
-        // ==========================================
-        // LUỒNG 2: DÀNH CHO MUA TẶNG QUÀ (BÌNH THƯỜNG)
-        // ==========================================
-        else {
-            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
-            
-            let buyer = "The Viewer", receiver = "The Gift Recipient";
-            let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
-            if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
-            else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
-
-            let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
-            if (e2Check.includes("buyer")) {
-                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
-            } else if (e2Check.includes("receiver")) {
-                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
-            }
-
-            textPrompt = `
+        const systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
+        
+        const textPrompt = `
 You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
 
 TARGET DURATION: 20 to 25 seconds.
@@ -391,11 +376,11 @@ You must structure the script based on the following requested elements. Execute
 
 1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
    ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
-   -> Rule: Execute this specific type of hook perfectly in the first sentence.
+   -> Rule: Execute this specific type of hook perfectly in the first sentence to grab attention in your assigned tone.
 
 2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
    ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
-   -> Rule: Showcase the product following this exact storyline angle and POV.
+   -> Rule: Showcase the product following this exact storyline angle and your strictly assigned POV. Ensure it connects logically with the Hook.
 
 3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
    ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
@@ -407,6 +392,7 @@ ${elementsContext}
 === IMAGE GUIDELINES (if an image is provided) ===
 - Describe only general visual attributes: colors, materials, textures, shapes, layout.
 - Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
+- Do not reference personal identity, appearance, or sensitive attributes.
 
 === OUTPUT FORMAT ===
 - Divide the script into short scenes with timestamps.
@@ -414,7 +400,6 @@ ${elementsContext}
 - Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
-        }
 
         let messagesContent = [{ type: "text", text: textPrompt }];
         let finalImageUsed = false;
@@ -468,9 +453,6 @@ ${elementsContext}
     }
 });
 
-// =====================================================================
-// API TẠO PROMPT QUAY VIDEO (ĐIỀU CHỈNH BỐI CẢNH LINH HOẠT)
-// =====================================================================
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
@@ -510,6 +492,94 @@ ${script}`;
         res.status(500).json({ error: error.message });
     }
 });
+
+
+// =====================================================================
+// LUỒNG MỚI: KẾT NỐI BYTEPLUS API (SEEDANCE) ĐỂ TẠO VIDEO
+// =====================================================================
+
+app.post('/api/generate-video', async (req, res) => {
+    try {
+        const { prompt, imageUrl } = req.body;
+        if (!prompt) return res.status(400).json({ error: "Missing prompt data" });
+
+        // Cấu trúc payload theo chuẩn BytePlus Seedance
+        const content = [
+            { type: "text", text: prompt }
+        ];
+
+        if (imageUrl) {
+            content.push({
+                type: "image_url",
+                image_url: { url: imageUrl },
+                role: "reference_image"
+            });
+        }
+
+        const payload = {
+            model: "dreamina-seedance-2-0-260128",
+            content: content,
+            generate_audio: true,
+            ratio: "9:16", 
+            duration: 11, 
+            watermark: false
+        };
+
+        const response = await axios.post('https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks', payload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}`
+            }
+        });
+
+        if (response.data && response.data.id) {
+            res.json({ taskId: response.data.id });
+        } else {
+            throw new Error("Failed to create BytePlus task: " + JSON.stringify(response.data));
+        }
+    } catch (error) {
+        console.error("BytePlus Create Task Error:", error.response?.data || error.message);
+        res.status(500).json({ error: error.response?.data?.error?.message || error.message });
+    }
+});
+
+app.get('/api/check-video/:taskId', async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const response = await axios.get(`https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/${taskId}`, {
+            headers: {
+                'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}`
+            }
+        });
+
+        const task = response.data;
+        if (!task) throw new Error("No data returned from BytePlus");
+
+        const status = task.status ? task.status.toLowerCase() : 'unknown';
+
+        if (status === "succeeded") {
+            let videoUrl = "";
+            if (Array.isArray(task.content)) {
+                const vidObj = task.content.find(c => c.type === 'video_url' || c.video_url);
+                if (vidObj) {
+                    videoUrl = vidObj.video_url?.url || vidObj.url || "";
+                }
+            } else if (task.video_url) {
+                videoUrl = task.video_url;
+            }
+            res.json({ status: "succeeded", videoUrl: videoUrl });
+        } else if (status === "failed") {
+            res.json({ status: "failed", error: task.error?.message || "Unknown BytePlus Error" });
+        } else {
+            res.json({ status: status }); 
+        }
+
+    } catch (error) {
+        console.error("BytePlus Check Task Error:", error.response?.data || error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 app.get('/', (req, res) => {
     res.status(200).send('Server is running');

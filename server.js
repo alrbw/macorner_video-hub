@@ -9,9 +9,7 @@ const { OpenAI } = require('openai');
 
 function cleanAIScript(text) {
     if (!text) return "";
-    // Dọn dẹp thẻ markdown code (VD: ```plaintext) do AI tự sinh ra
     let cleaned = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, ''); 
-    // Xóa chữ plaintext nếu bị rớt lại ở đầu chuỗi
     cleaned = cleaned.replace(/^\s*plaintext\s*/i, '');
     
     return cleaned
@@ -31,7 +29,7 @@ app.use(express.json({ limit: '100mb' }));
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function getLarkToken() {
-    const res = await axios.post('[https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal](https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal)', {
+    const res = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', {
         app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET
     });
     return res.data.tenant_access_token;
@@ -266,9 +264,6 @@ app.post('/api/analyze-link', async (req, res) => {
     }
 });
 
-// =====================================================================
-// KHÔI PHỤC HOÀN TOÀN CẤU TRÚC PROMPT AI TẠO SCRIPT GỐC ĐÃ HOẠT ĐỘNG
-// =====================================================================
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
@@ -277,7 +272,7 @@ app.post('/api/generate-script', async (req, res) => {
         
         try {
             if (process.env.APP_ID && process.env.TABLE_ID) {
-                const tokenRes = await axios.post('[https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal](https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal)', { app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET });
+                const tokenRes = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', { app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET });
                 const larkToken = tokenRes.data.tenant_access_token;
                 const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
                 const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
@@ -380,7 +375,7 @@ ${elementsContext}
 === OUTPUT FORMAT ===
 - Divide the script into short scenes with timestamps.
 - Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: Your sentence here.
+- Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
         } 
@@ -443,7 +438,7 @@ ${elementsContext}
 === OUTPUT FORMAT ===
 - Divide the script into short scenes with timestamps.
 - Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
-- Use this format: Your sentence here.
+- Use this format: [0:00-0:03] Your sentence here.
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
         }
@@ -553,7 +548,7 @@ app.post('/api/generate-video', async (req, res) => {
             watermark: false
         };
 
-        const response = await axios.post('[https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks](https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks)', payload, {
+        const response = await axios.post('https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks', payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}`

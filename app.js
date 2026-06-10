@@ -45,77 +45,79 @@ if (!document.getElementById('modern-ui-styles')) {
     </style>`);
 }
 
-let RAW_DATA = [];
-let SELECTED_PAIRS = new Map();
-let FINAL_SELECTED_CODES = new Map();
+window.RAW_DATA = [];
+window.SELECTED_PAIRS = new Map();
+window.FINAL_SELECTED_CODES = new Map();
 
-let CSV_HEADERS = [];
-let PB_INDEX = -1;
+window.CSV_HEADERS = [];
+window.PB_INDEX = -1;
 
-let GLOBAL_TARGET_CODE = "";
-let GLOBAL_PRODUCT_BASE = "";
-let GLOBAL_SCRAPED_DATA = "";
-let GLOBAL_IMAGE_URL = "";
-let CURRENT_NICHE = "";
+window.GLOBAL_TARGET_CODE = "";
+window.GLOBAL_PRODUCT_BASE = "";
+window.GLOBAL_SCRAPED_DATA = "";
+window.GLOBAL_IMAGE_URL = "";
+window.CURRENT_NICHE = "";
 
-let AI_CACHE = new Map();
-let MIX_OPTIONS_CACHE = new Map(); 
+window.AI_CACHE = new Map();
+window.MIX_OPTIONS_CACHE = new Map(); 
 
-let MANUAL_E2 = [];
-let MANUAL_E4 = [];
-let CURRENT_MATRIX_LIMIT = 5;
+window.MANUAL_E2 = [];
+window.MANUAL_E4 = [];
+window.CURRENT_MATRIX_LIMIT = 5;
 
 window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 window.CUSTOM_IMAGES = []; // Mảng chứa base64 ảnh tự up
 
-let GLOBAL_CACHE_KEY = ""; 
+window.GLOBAL_CACHE_KEY = ""; 
 
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
-const API_BASE_URL = '[https://only-breanne-dzt-b25e098f.koyeb.app](https://only-breanne-dzt-b25e098f.koyeb.app)'; 
 
-function saveStateToCache() {
-    if (!GLOBAL_CACHE_KEY) return;
+// KHÔNG CÓ KÝ TỰ LẠ XUNG QUANH URL
+const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
+
+window.saveStateToCache = function() {
+    if (!window.GLOBAL_CACHE_KEY) return;
     const state = {
-        pairs: Array.from(SELECTED_PAIRS.entries()),
-        finals: Array.from(FINAL_SELECTED_CODES.entries()),
-        ai: Array.from(AI_CACHE.entries()),
-        mixes: Array.from(MIX_OPTIONS_CACHE.entries()),
-        pb: GLOBAL_PRODUCT_BASE,
-        sd: GLOBAL_SCRAPED_DATA,
-        img: GLOBAL_IMAGE_URL,
-        mE2: MANUAL_E2,
-        mE4: MANUAL_E4,
-        limit: CURRENT_MATRIX_LIMIT,
+        pairs: Array.from(window.SELECTED_PAIRS.entries()),
+        finals: Array.from(window.FINAL_SELECTED_CODES.entries()),
+        ai: Array.from(window.AI_CACHE.entries()),
+        mixes: Array.from(window.MIX_OPTIONS_CACHE.entries()),
+        pb: window.GLOBAL_PRODUCT_BASE,
+        sd: window.GLOBAL_SCRAPED_DATA,
+        img: window.GLOBAL_IMAGE_URL,
+        mE2: window.MANUAL_E2,
+        mE4: window.MANUAL_E4,
+        limit: window.CURRENT_MATRIX_LIMIT,
         customImages: window.CUSTOM_IMAGES
     };
-    localStorage.setItem(`macorner_state_${GLOBAL_CACHE_KEY}`, JSON.stringify(state));
+    localStorage.setItem(`macorner_state_${window.GLOBAL_CACHE_KEY}`, JSON.stringify(state));
 }
 
-function loadStateFromCache(key) {
+window.loadStateFromCache = function(key) {
     const raw = localStorage.getItem(`macorner_state_${key}`);
-    SELECTED_PAIRS.clear();
-    FINAL_SELECTED_CODES.clear();
-    AI_CACHE.clear();
-    MIX_OPTIONS_CACHE.clear();
-    MANUAL_E2 = [];
-    MANUAL_E4 = [];
+    window.SELECTED_PAIRS.clear();
+    window.FINAL_SELECTED_CODES.clear();
+    window.AI_CACHE.clear();
+    window.MIX_OPTIONS_CACHE.clear();
+    window.MANUAL_E2 = [];
+    window.MANUAL_E4 = [];
     window.CUSTOM_IMAGES = [];
 
     if (raw) {
         try {
             const state = JSON.parse(raw);
-            SELECTED_PAIRS = new Map(state.pairs || []);
-            FINAL_SELECTED_CODES = new Map(state.finals || []);
-            AI_CACHE = new Map(state.ai || []);
-            MIX_OPTIONS_CACHE = new Map(state.mixes || []);
+            window.SELECTED_PAIRS = new Map(state.pairs || []);
+            window.FINAL_SELECTED_CODES = new Map(state.finals || []);
+            window.AI_CACHE = new Map(state.ai || []);
+            window.MIX_OPTIONS_CACHE = new Map(state.mixes || []);
             
-            if (state.pb) GLOBAL_PRODUCT_BASE = state.pb;
-            if (state.sd) GLOBAL_SCRAPED_DATA = state.sd;
-            if (state.img) GLOBAL_IMAGE_URL = state.img;
-            if (state.mE2) MANUAL_E2 = state.mE2 || [];
-            if (state.mE4) MANUAL_E4 = state.mE4 || [];
-            if (state.limit) CURRENT_MATRIX_LIMIT = state.limit;
+            if (state.pb) window.GLOBAL_PRODUCT_BASE = state.pb;
+            if (state.sd) window.GLOBAL_SCRAPED_DATA = state.sd;
+            if (state.img) window.GLOBAL_IMAGE_URL = state.img;
+            if (state.mE2) window.MANUAL_E2 = state.mE2 || [];
+            if (state.mE4) window.MANUAL_E4 = state.mE4 || [];
+            if (state.limit) window.CURRENT_MATRIX_LIMIT = state.limit;
             if (state.customImages) window.CUSTOM_IMAGES = state.customImages || [];
             
             return true;
@@ -137,7 +139,7 @@ window.switchView = function(view) {
     if (view === 'store') window.renderStore(); 
 }
 
-function extractNiche(adName) {
+window.extractNiche = function(adName) {
     const match = adName.match(/([A-Z]{3})\d{4,6}/);
     return match ? match[1] : adName.substring(0, 3).toUpperCase();
 }
@@ -150,16 +152,16 @@ document.getElementById('csvFileInput').addEventListener('change', function (e) 
         const rows = event.target.result.split('\n').filter(r => r.trim() !== "");
         if (rows.length === 0) return;
 
-        CSV_HEADERS = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
-        PB_INDEX = CSV_HEADERS.findIndex(h => h.includes('product base') || h.includes('product'));
+        window.CSV_HEADERS = rows[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+        window.PB_INDEX = window.CSV_HEADERS.findIndex(h => h.includes('product base') || h.includes('product'));
 
-        RAW_DATA = rows.slice(1).map(line => {
+        window.RAW_DATA = rows.slice(1).map(line => {
             const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
             if (cols.length < 3) return null;
 
             let cleanAdName = cols[0] ? cols[0].replace(/^"|"$/g, '').trim() : "";
             let rawSpent = cols[2] ? cols[2].replace(/[^0-9.-]+/g, "") : "0";
-            let productBase = (PB_INDEX !== -1 && cols[PB_INDEX]) ? cols[PB_INDEX].replace(/^"|"$/g, '').trim() : "";
+            let productBase = (window.PB_INDEX !== -1 && cols[window.PB_INDEX]) ? cols[window.PB_INDEX].replace(/^"|"$/g, '').trim() : "";
 
             return {
                 adName: cleanAdName,
@@ -168,7 +170,7 @@ document.getElementById('csvFileInput').addEventListener('change', function (e) 
                 elements: cleanAdName.match(/\d{10}/) ? cleanAdName.match(/\d{10}/)[0] : null
             };
         }).filter(i => i);
-        document.getElementById('fileStatus').textContent = "Loaded: " + RAW_DATA.length;
+        document.getElementById('fileStatus').textContent = "Loaded: " + window.RAW_DATA.length;
     };
     reader.readAsText(file);
 });
@@ -237,23 +239,23 @@ document.getElementById('btnAnalyze').onclick = async function () {
         btn.disabled = false;
     }
 
-    GLOBAL_TARGET_CODE = tempTargetCode;
-    GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
+    window.GLOBAL_TARGET_CODE = tempTargetCode;
+    window.GLOBAL_CACHE_KEY = asin ? `ASIN_${asin}` : `CODE_${tempTargetCode}`;
 
-    const history = RAW_DATA.filter(i => i.adName.includes(GLOBAL_TARGET_CODE) && i.elements);
-    CURRENT_NICHE = history.length > 0 ? extractNiche(history[0].adName) : extractNiche(GLOBAL_TARGET_CODE);
+    const history = window.RAW_DATA.filter(i => i.adName.includes(window.GLOBAL_TARGET_CODE) && i.elements);
+    window.CURRENT_NICHE = history.length > 0 ? window.extractNiche(history[0].adName) : window.extractNiche(window.GLOBAL_TARGET_CODE);
     
-    const hasCache = loadStateFromCache(GLOBAL_CACHE_KEY);
+    const hasCache = window.loadStateFromCache(window.GLOBAL_CACHE_KEY);
     if (!hasCache) {
-        CURRENT_MATRIX_LIMIT = history.length > 0 ? 9 : 5;
+        window.CURRENT_MATRIX_LIMIT = history.length > 0 ? 9 : 5;
     }
     
-    if (tempProductBase) GLOBAL_PRODUCT_BASE = tempProductBase;
-    if (tempScrapedData) GLOBAL_SCRAPED_DATA = tempScrapedData;
-    if (tempImageUrl) GLOBAL_IMAGE_URL = tempImageUrl;
+    if (tempProductBase) window.GLOBAL_PRODUCT_BASE = tempProductBase;
+    if (tempScrapedData) window.GLOBAL_SCRAPED_DATA = tempScrapedData;
+    if (tempImageUrl) window.GLOBAL_IMAGE_URL = tempImageUrl;
 
     analysisSec.style.display = 'block';
-    saveStateToCache();
+    window.saveStateToCache();
 
     const hContainer = document.getElementById('historyContainer');
     if (history.length > 0) {
@@ -263,10 +265,10 @@ document.getElementById('btnAnalyze').onclick = async function () {
         hContainer.style.display = 'none';
     }
 
-    window.renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
+    window.renderMatrix(window.CURRENT_NICHE, window.CURRENT_MATRIX_LIMIT, window.GLOBAL_TARGET_CODE);
     
-    if (SELECTED_PAIRS.size > 0) window.updateMixArea();
-    if (FINAL_SELECTED_CODES.size > 0) window.renderReviewView();
+    if (window.SELECTED_PAIRS.size > 0) window.updateMixArea();
+    if (window.FINAL_SELECTED_CODES.size > 0) window.renderReviewView();
 };
 
 window.getTopElements = function(niche, type, limit) {
@@ -277,7 +279,7 @@ window.getTopElements = function(niche, type, limit) {
         else pool.sort(() => 0.5 - Math.random());
     }
 
-    const nicheData = RAW_DATA.filter(i => i.adName.toUpperCase().includes(niche.toUpperCase()) && i.elements);
+    const nicheData = window.RAW_DATA.filter(i => i.adName.toUpperCase().includes(niche.toUpperCase()) && i.elements);
     let map = {};
     nicheData.forEach(i => {
         const code = type === 'E2' ? i.elements.substring(2, 4) : i.elements.substring(6, 8);
@@ -302,10 +304,10 @@ window.renderMatrix = function(niche, limit, targetCode) {
     const e2List = window.getTopElements(niche, 'E2', limit);
     const e4List = window.getTopElements(niche, 'E4', limit);
     
-    MANUAL_E2.forEach(code => {
+    window.MANUAL_E2.forEach(code => {
         if (!e2List.find(e => e.code === code)) e2List.push({code, spent: 0, isManual: true});
     });
-    MANUAL_E4.forEach(code => {
+    window.MANUAL_E4.forEach(code => {
         if (!e4List.find(e => e.code === code)) e4List.push({code, spent: 0, isManual: true});
     });
 
@@ -340,9 +342,9 @@ window.renderMatrix = function(niche, limit, targetCode) {
         html += `<tr><td style="text-align: center;"><span class="code-box" data-type="E4" data-code="${e4.code}">${e4.code}</span><br><small>${e4.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e4.spent.toLocaleString()}</small></td>`;
         e2List.forEach(e2 => {
             const pairKey = `${e2.code}-${e4.code}`;
-            const isRan = RAW_DATA.some(s => s.adName.toUpperCase().includes(targetCode.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
-            const isChecked = SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
-            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.togglePair('${e2.code}', '${e4.code}', this)"></td>`;
+            const isRan = window.RAW_DATA.some(s => s.adName.toUpperCase().includes(window.GLOBAL_TARGET_CODE.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
+            const isChecked = window.SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
+            html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${window.GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.togglePair('${e2.code}', '${e4.code}', this)"></td>`;
         });
         html += `</tr>`;
     });
@@ -353,7 +355,7 @@ window.renderMatrix = function(niche, limit, targetCode) {
     window.injectSearchModal(); 
 }
 
-let currentSearchType = 'E2';
+window.currentSearchType = 'E2';
 
 window.injectSearchModal = function() {
     if (document.getElementById('custom-element-modal')) return;
@@ -370,7 +372,7 @@ window.injectSearchModal = function() {
 }
 
 window.openSearchModal = function(type) {
-    currentSearchType = type;
+    window.currentSearchType = type;
     document.getElementById('custom-element-title').innerHTML = `🔍 Search & Add <b>${type}</b>`;
     document.getElementById('custom-element-search').value = '';
     document.getElementById('custom-element-results').innerHTML = '';
@@ -386,7 +388,7 @@ window.closeSearchModal = function() {
 window.handleElementSearch = function(query) {
     query = query.toLowerCase().trim();
     const resultsDiv = document.getElementById('custom-element-results');
-    const data = (typeof ELEMENTS_DATA !== 'undefined') ? ELEMENTS_DATA[currentSearchType] : [];
+    const data = (typeof ELEMENTS_DATA !== 'undefined') ? ELEMENTS_DATA[window.currentSearchType] : [];
     
     if (!data || data.length === 0) {
         resultsDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#94a3b8;">Element data not found.</div>';
@@ -411,8 +413,8 @@ window.handleElementSearch = function(query) {
         const detail = item.Detail || item.Hook || item['Insights to niches'] || item.CTA || item['Source/Video Type'] || 'N/A';
         const expl = item.Explanation || '';
         
-        const isAdded = (currentSearchType === 'E2' && window.CURRENT_RENDERED_E2.includes(code)) || 
-                        (currentSearchType === 'E4' && window.CURRENT_RENDERED_E4.includes(code));
+        const isAdded = (window.currentSearchType === 'E2' && window.CURRENT_RENDERED_E2.includes(code)) || 
+                        (window.currentSearchType === 'E4' && window.CURRENT_RENDERED_E4.includes(code));
         
         const btnHtml = isAdded 
             ? `<button disabled style="padding:6px 10px; background:#e2e8f0; color:#94a3b8; border:none; border-radius:4px; font-size:12px; cursor:not-allowed; font-weight:bold;">Added</button>`
@@ -435,24 +437,24 @@ window.handleElementSearch = function(query) {
 };
 
 window.selectCustomElement = function(code) {
-    if (currentSearchType === 'E2' && !MANUAL_E2.includes(code)) MANUAL_E2.push(code);
-    else if (currentSearchType === 'E4' && !MANUAL_E4.includes(code)) MANUAL_E4.push(code);
-    saveStateToCache(); 
+    if (window.currentSearchType === 'E2' && !window.MANUAL_E2.includes(code)) window.MANUAL_E2.push(code);
+    else if (window.currentSearchType === 'E4' && !window.MANUAL_E4.includes(code)) window.MANUAL_E4.push(code);
+    window.saveStateToCache(); 
     window.closeSearchModal();
-    window.renderMatrix(CURRENT_NICHE, CURRENT_MATRIX_LIMIT, GLOBAL_TARGET_CODE);
+    window.renderMatrix(window.CURRENT_NICHE, window.CURRENT_MATRIX_LIMIT, window.GLOBAL_TARGET_CODE);
 };
 
 window.togglePair = function(e2, e4, checkbox) {
     const key = `${e2}-${e4}`;
     if (checkbox.checked) { 
-        if (!SELECTED_PAIRS.has(key)) SELECTED_PAIRS.set(key, { e2, e4 }); 
+        if (!window.SELECTED_PAIRS.has(key)) window.SELECTED_PAIRS.set(key, { e2, e4 }); 
     } else { 
-        SELECTED_PAIRS.delete(key); 
-        Array.from(FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
-            if (data.pairKey === key) FINAL_SELECTED_CODES.delete(code);
+        window.SELECTED_PAIRS.delete(key); 
+        Array.from(window.FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
+            if (data.pairKey === key) window.FINAL_SELECTED_CODES.delete(code);
         });
     }
-    saveStateToCache(); 
+    window.saveStateToCache(); 
     window.updateMixArea();
     window.renderReviewView(); 
 }
@@ -462,7 +464,7 @@ window.updateMixArea = function() {
     const headers = document.getElementById('tabHeaders');
     const contents = document.getElementById('tabContents');
     
-    if (SELECTED_PAIRS.size === 0) { 
+    if (window.SELECTED_PAIRS.size === 0) { 
         area.style.display = 'none'; 
         window.renderReviewView();
         return; 
@@ -474,7 +476,7 @@ window.updateMixArea = function() {
     headers.innerHTML = '';
     contents.innerHTML = ''; 
 
-    SELECTED_PAIRS.forEach((val, key) => {
+    window.SELECTED_PAIRS.forEach((val, key) => {
         headers.innerHTML += `<button class="tab-btn ${currentActive === key ? 'active' : ''}" data-key="${key}" onclick="window.switchTab('${key}', 'tabHeaders', 'tabContents')">Pair ${key}</button>`;
         const pane = document.createElement('div');
         pane.className = 'tab-pane'; pane.id = `pane-${key}`;
@@ -483,7 +485,7 @@ window.updateMixArea = function() {
         window.generateMixForTab(key);
     });
     
-    const finalKey = currentActive && SELECTED_PAIRS.has(currentActive) ? currentActive : SELECTED_PAIRS.keys().next().value;
+    const finalKey = currentActive && window.SELECTED_PAIRS.has(currentActive) ? currentActive : window.SELECTED_PAIRS.keys().next().value;
     window.switchTab(finalKey, 'tabHeaders', 'tabContents');
 }
 
@@ -493,12 +495,12 @@ window.switchTab = function(key, headerId, contentId) {
 }
 
 window.forceRegenerateMixForTab = function(key) {
-    MIX_OPTIONS_CACHE.delete(key);
-    Array.from(FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
-        if (data.pairKey === key) FINAL_SELECTED_CODES.delete(code);
+    window.MIX_OPTIONS_CACHE.delete(key);
+    Array.from(window.FINAL_SELECTED_CODES.entries()).forEach(([code, data]) => {
+        if (data.pairKey === key) window.FINAL_SELECTED_CODES.delete(code);
     });
     window.generateMixForTab(key);
-    saveStateToCache();
+    window.saveStateToCache();
     window.renderReviewView();
 }
 
@@ -508,7 +510,7 @@ window.getSmartMix = function(niche, type, limit) {
     if (type === 'E1') pool = pool.filter(code => code !== '00' && code !== '01');
     else if (type === 'E5') pool = pool.filter(code => code !== '00');
 
-    const history = RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
+    const history = window.RAW_DATA.filter(s => s.adName.toUpperCase().includes(niche.toUpperCase()) && s.elements);
     let map = {};
     history.forEach(s => {
         const code = type === 'E1' ? s.elements.substring(0, 2) : s.elements.substring(8, 10);
@@ -523,42 +525,42 @@ window.getSmartMix = function(niche, type, limit) {
 }
 
 window.generateMixForTab = function(key) {
-    const pair = SELECTED_PAIRS.get(key);
+    const pair = window.SELECTED_PAIRS.get(key);
     let options = [];
 
-    if (MIX_OPTIONS_CACHE.has(key)) {
-        options = MIX_OPTIONS_CACHE.get(key);
+    if (window.MIX_OPTIONS_CACHE.has(key)) {
+        options = window.MIX_OPTIONS_CACHE.get(key);
     } else {
-        const e1Opts = window.getSmartMix(CURRENT_NICHE, 'E1', 5);
-        const e5Opts = window.getSmartMix(CURRENT_NICHE, 'E5', 5);
+        const e1Opts = window.getSmartMix(window.CURRENT_NICHE, 'E1', 5);
+        const e5Opts = window.getSmartMix(window.CURRENT_NICHE, 'E5', 5);
         for (let i = 0; i < 5; i++) {
             const e1 = e1Opts[i] || "02", e5 = e5Opts[i] || "01";
             options.push(`${e1}${pair.e2}03${pair.e4}${e5}`);
         }
-        MIX_OPTIONS_CACHE.set(key, options);
-        saveStateToCache();
+        window.MIX_OPTIONS_CACHE.set(key, options);
+        window.saveStateToCache();
     }
 
     let html = `<table><thead><tr><th>Option</th><th>E1</th><th>E2</th><th>E3</th><th>E4</th><th>E5</th><th>Full Code</th><th>Select</th></tr></thead><tbody>`;
     options.forEach((full, i) => {
         const e1 = full.substring(0, 2), e5 = full.substring(8, 10);
-        const isChecked = FINAL_SELECTED_CODES.has(full) ? 'checked' : '';
+        const isChecked = window.FINAL_SELECTED_CODES.has(full) ? 'checked' : '';
         html += `<tr>
                     <td>#${i + 1}</td>
                     <td><span class="code-box" data-type="E1" data-code="${e1}">${e1}</span></td>
                     <td>${pair.e2}</td><td>03</td><td>${pair.e4}</td>
                     <td><span class="code-box" data-type="E5" data-code="${e5}">${e5}</span></td>
                     <td><span class="full-code-text" data-full="${full}">${full}</span></td>
-                    <td><input type="checkbox" id="mix_cb_${GLOBAL_CACHE_KEY}_${full}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.toggleFinalCode('${full}', '${key}', this)"></td>
+                    <td><input type="checkbox" id="mix_cb_${window.GLOBAL_CACHE_KEY}_${full}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.toggleFinalCode('${full}', '${key}', this)"></td>
                  </tr>`;
     });
     document.getElementById(`mix-table-${key}`).innerHTML = html + `</tbody></table>`;
 }
 
 window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
-    if (checkbox.checked) FINAL_SELECTED_CODES.set(fullCode, { fullCode, pairKey });
-    else FINAL_SELECTED_CODES.delete(fullCode);
-    saveStateToCache(); 
+    if (checkbox.checked) window.FINAL_SELECTED_CODES.set(fullCode, { fullCode, pairKey });
+    else window.FINAL_SELECTED_CODES.delete(fullCode);
+    window.saveStateToCache(); 
     window.renderReviewView();
 }
 
@@ -600,14 +602,14 @@ window.handleUploadImages = async function(e) {
             window.CUSTOM_IMAGES.push(b64);
         }
     }
-    saveStateToCache();
+    window.saveStateToCache();
     window.renderCustomImagesPreview();
     window.renderReviewView();
 };
 
 window.removeCustomImage = function(index) {
     window.CUSTOM_IMAGES.splice(index, 1);
-    saveStateToCache();
+    window.saveStateToCache();
     window.renderCustomImagesPreview();
     window.renderReviewView();
 };
@@ -701,25 +703,25 @@ window.renderReviewView = function() {
     if (!headers || !contents) return;
     headers.innerHTML = ''; contents.innerHTML = '';
 
-    if (FINAL_SELECTED_CODES.size === 0) { 
+    if (window.FINAL_SELECTED_CODES.size === 0) { 
         if (msg) msg.style.display = 'block'; 
         return; 
     }
     if (msg) msg.style.display = 'none';
 
-    let displayProductName = GLOBAL_PRODUCT_BASE;
-    if (!displayProductName && GLOBAL_TARGET_CODE) {
-        const historyMatch = RAW_DATA.find(i => i.adName.includes(GLOBAL_TARGET_CODE) && i.productBase);
+    let displayProductName = window.GLOBAL_PRODUCT_BASE;
+    if (!displayProductName && window.GLOBAL_TARGET_CODE) {
+        const historyMatch = window.RAW_DATA.find(i => i.adName.includes(window.GLOBAL_TARGET_CODE) && i.productBase);
         if (historyMatch) displayProductName = historyMatch.productBase;
     }
     if (!displayProductName) displayProductName = "Personalized Custom Gift";
 
-    const linkBadgeHtml = GLOBAL_SCRAPED_DATA
+    const linkBadgeHtml = window.GLOBAL_SCRAPED_DATA
         ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;">✓ Data Connected</span>`
         : "";
 
-    const imgPreviewHtml = GLOBAL_IMAGE_URL
-        ? `<img src="${GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
+    const imgPreviewHtml = window.GLOBAL_IMAGE_URL
+        ? `<img src="${window.GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
     const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;">🪙 BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
@@ -755,7 +757,7 @@ window.renderReviewView = function() {
     window.renderCustomImagesPreview();
 
     const grouped = {};
-    FINAL_SELECTED_CODES.forEach(item => {
+    window.FINAL_SELECTED_CODES.forEach(item => {
         if (!grouped[item.pairKey]) grouped[item.pairKey] = [];
         grouped[item.pairKey].push(item.fullCode);
     });
@@ -771,7 +773,7 @@ window.renderReviewView = function() {
         grouped[pairKey].forEach(code => {
             const e1 = code.substring(0, 2), e2 = code.substring(2, 4), e3 = code.substring(4, 6), e4 = code.substring(6, 8), e5 = code.substring(8, 10);
 
-            const cacheData = AI_CACHE.get(code) || {};
+            const cacheData = window.AI_CACHE.get(code) || {};
             const hasCache = !!cacheData.rawScript;
             const scriptText = hasCache ? cacheData.scriptHtml : '';
             const isExpanded = hasCache ? cacheData.expanded : true;
@@ -862,7 +864,7 @@ window.toggleAI = function(code) {
     const btn = document.getElementById(`toggle-btn-${code}`);
     if (!row) return;
 
-    let cacheData = AI_CACHE.get(code);
+    let cacheData = window.AI_CACHE.get(code);
     if (!cacheData) return;
 
     if (row.style.display === 'none') {
@@ -874,7 +876,7 @@ window.toggleAI = function(code) {
         btn.innerText = '▶';
         cacheData.expanded = false;
     }
-    saveStateToCache(); 
+    window.saveStateToCache(); 
 }
 
 window.togglePromptForm = function(fullCode) {
@@ -883,21 +885,20 @@ window.togglePromptForm = function(fullCode) {
         const isHidden = builder.style.display === 'none';
         builder.style.display = isHidden ? 'block' : 'none';
         
-        const cacheData = AI_CACHE.get(fullCode) || {};
+        const cacheData = window.AI_CACHE.get(fullCode) || {};
         cacheData.showPromptBuilder = isHidden;
         
         const aiResultHtml = document.getElementById(`ai-result-${fullCode}`).innerHTML;
         cacheData.scriptHtml = aiResultHtml; 
 
-        AI_CACHE.set(fullCode, cacheData);
-        saveStateToCache();
+        window.AI_CACHE.set(fullCode, cacheData);
+        window.saveStateToCache();
     }
 }
 
-// KHÔI PHỤC ĐẦY ĐỦ HÀM GỌI KỊCH BẢN (SCRIPT GENERATION) CHUẨN TIMESTAMP
 window.generateAIScript = async function(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
+    const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
 
     const row = document.getElementById(`ai-row-${fullCode}`);
     const resultBox = document.getElementById(`ai-result-${fullCode}`);
@@ -907,11 +908,11 @@ window.generateAIScript = async function(fullCode, btn) {
     if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
     btn.disabled = true;
 
-    let processText = GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
+    let processText = window.GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
     resultBox.innerHTML = processText;
 
     try {
-        const spentCodes = RAW_DATA.filter(i => i.adName.toUpperCase().includes(CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
+        const spentCodes = window.RAW_DATA.filter(i => i.adName.toUpperCase().includes(window.CURRENT_NICHE) && i.spent > 0 && i.elements).map(i => i.elements);
         const e1 = fullCode.substring(0, 2), e2 = fullCode.substring(2, 4), e3 = fullCode.substring(4, 6), e4 = fullCode.substring(6, 8), e5 = fullCode.substring(8, 10);
         
         const getEl = (type, code) => typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') === code) : null;
@@ -931,9 +932,10 @@ window.generateAIScript = async function(fullCode, btn) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                fullCode, niche: CURRENT_NICHE, productBase,
-                scrapedData: GLOBAL_SCRAPED_DATA,
-                imageUrl: GLOBAL_IMAGE_URL,
+                fullCode, niche: window.CURRENT_NICHE, productBase,
+                scrapedData: window.GLOBAL_SCRAPED_DATA,
+                imageUrl: window.GLOBAL_IMAGE_URL,
+                customImages: window.CUSTOM_IMAGES,
                 spentCodes, eData
             })
         });
@@ -964,8 +966,8 @@ window.generateAIScript = async function(fullCode, btn) {
         `;
 
         resultBox.innerHTML = scriptHtml;
-        AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
-        saveStateToCache(); 
+        window.AI_CACHE.set(fullCode, { scriptHtml, rawScript: rawScriptText, expanded: true });
+        window.saveStateToCache(); 
         
         window.renderReviewView();
 
@@ -977,9 +979,8 @@ window.generateAIScript = async function(fullCode, btn) {
     }
 }
 
-// KHÔI PHỤC HÀM TẠO PROMPT QUAY VIDEO (ÉP TIẾNG ANH 100%)
 window.generateShootingPrompt = async function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
+    const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
 
     const recipientInput = document.getElementById(`prompt-recipient-${fullCode}`);
@@ -1033,7 +1034,7 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                     <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
@@ -1047,8 +1048,8 @@ window.generateShootingPrompt = async function(fullCode) {
         cacheData.videoGenStatus = '';
         cacheData.videoGenTime = 0;
         
-        AI_CACHE.set(fullCode, cacheData);
-        saveStateToCache();
+        window.AI_CACHE.set(fullCode, cacheData);
+        window.saveStateToCache();
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
     } finally {
@@ -1064,8 +1065,8 @@ window.editPrompt = function(code) {
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
     
     if (actionWrapper) {
-        actionWrapper.querySelector('div:last-child').style.display = 'none'; // Ẩn nút Edit, Copy, GenVideo
-        actionWrapper.querySelector('.insert-img-toolbar').style.display = 'flex'; // Hiện thanh chèn nhanh ảnh
+        actionWrapper.querySelector('div:last-child').style.display = 'none'; 
+        actionWrapper.querySelector('.insert-img-toolbar').style.display = 'flex'; 
     }
     
     textDiv.style.display = 'none';
@@ -1084,11 +1085,11 @@ window.savePromptEdit = function(code) {
     textDiv.style.display = 'block';
     editArea.style.display = 'none';
     
-    const cacheData = AI_CACHE.get(code);
+    const cacheData = window.AI_CACHE.get(code);
     if(cacheData) {
         cacheData.shootingPrompt = newText;
-        AI_CACHE.set(code, cacheData);
-        saveStateToCache();
+        window.AI_CACHE.set(code, cacheData);
+        window.saveStateToCache();
     }
     
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
@@ -1099,7 +1100,7 @@ window.savePromptEdit = function(code) {
 };
 
 window.cancelPromptEdit = function(code) {
-    const cacheData = AI_CACHE.get(code);
+    const cacheData = window.AI_CACHE.get(code);
     const originalText = cacheData ? cacheData.shootingPrompt : '';
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const editArea = document.getElementById(`prompt-edit-area-${code}`);
@@ -1115,19 +1116,15 @@ window.cancelPromptEdit = function(code) {
     }
 };
 
-// =====================================================================
-// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
-// =====================================================================
-
 window.generateVideo = async function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
+    const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
     // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
-    AI_CACHE.set(fullCode, cacheData);
-    saveStateToCache();
+    window.AI_CACHE.set(fullCode, cacheData);
+    window.saveStateToCache();
 
     // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
@@ -1141,7 +1138,7 @@ window.generateVideo = async function(fullCode) {
     try {
         const payloadParams = {
             prompt: cacheData.shootingPrompt,
-            imageUrl: GLOBAL_IMAGE_URL,
+            imageUrl: window.GLOBAL_IMAGE_URL,
             customImages: window.CUSTOM_IMAGES 
         };
 
@@ -1159,11 +1156,11 @@ window.generateVideo = async function(fullCode) {
 
         // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
-            const cData = AI_CACHE.get(fullCode);
+            const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
 
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
-            AI_CACHE.set(fullCode, cData);
+            window.AI_CACHE.set(fullCode, cData);
             
             // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
@@ -1178,7 +1175,7 @@ window.generateVideo = async function(fullCode) {
                 if (statusData.status === 'succeeded' || statusData.status === 'SUCCEEDED') {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
-                    AI_CACHE.set(fullCode, cData);
+                    window.AI_CACHE.set(fullCode, cData);
                     
                     // Cập nhật Token UI
                     if (statusData.usage && statusData.usage > 0) {
@@ -1187,7 +1184,7 @@ window.generateVideo = async function(fullCode) {
                         window.updateTokenDisplay();
                     }
 
-                    saveStateToCache();
+                    window.saveStateToCache();
 
                     if (currentBtn) {
                         currentBtn.innerText = "✅ Video Ready!";
@@ -1198,9 +1195,9 @@ window.generateVideo = async function(fullCode) {
                     }
 
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
-                    const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Product");
+                    const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Product");
 
-                    const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : GLOBAL_IMAGE_URL;
+                    const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : window.GLOBAL_IMAGE_URL;
 
                     try {
                         await fetch(`${API_BASE_URL}/api/gallery`, {
@@ -1209,7 +1206,7 @@ window.generateVideo = async function(fullCode) {
                             body: JSON.stringify({
                                 code: fullCode,
                                 productBase: productBase,
-                                targetCode: GLOBAL_TARGET_CODE || fullCode.substring(0,3),
+                                targetCode: window.GLOBAL_TARGET_CODE || fullCode.substring(0,3),
                                 videoUrl: statusData.videoUrl,
                                 imageUrl: coverImage,
                                 prompt: cData.shootingPrompt
@@ -1227,8 +1224,8 @@ window.generateVideo = async function(fullCode) {
             } catch (pollErr) {
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
-                AI_CACHE.set(fullCode, cData);
-                saveStateToCache();
+                window.AI_CACHE.set(fullCode, cData);
+                window.saveStateToCache();
                 
                 const errBtn = document.getElementById(`video-btn-${fullCode}`);
                 if (errBtn) {
@@ -1243,8 +1240,8 @@ window.generateVideo = async function(fullCode) {
             if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
-                AI_CACHE.set(fullCode, cData);
-                saveStateToCache();
+                window.AI_CACHE.set(fullCode, cData);
+                window.saveStateToCache();
                 
                 const timeoutBtn = document.getElementById(`video-btn-${fullCode}`);
                 if (timeoutBtn) {
@@ -1259,8 +1256,8 @@ window.generateVideo = async function(fullCode) {
 
     } catch (err) {
         cacheData.videoGenStatus = 'failed';
-        AI_CACHE.set(fullCode, cacheData);
-        saveStateToCache();
+        window.AI_CACHE.set(fullCode, cacheData);
+        window.saveStateToCache();
         
         const errBtn = document.getElementById(`video-btn-${fullCode}`);
         if(errBtn) {
@@ -1273,7 +1270,7 @@ window.generateVideo = async function(fullCode) {
     }
 };
 
-function adjustTooltip(e, tooltip) {
+window.adjustTooltip = function(e, tooltip) {
     const gap = 15; let x = e.pageX + gap; let y = e.pageY + gap;
     const ttWidth = tooltip.offsetWidth; const ttHeight = tooltip.offsetHeight;
     if (x + ttWidth > window.innerWidth + window.scrollX - 20) x = e.pageX - ttWidth - gap;
@@ -1316,8 +1313,8 @@ document.addEventListener('mouseover', (e) => {
 
 document.addEventListener('mousemove', (e) => {
     const tt1 = document.getElementById('tooltip'); const tt2 = document.getElementById('fullcode-tooltip');
-    if (tt1 && tt1.style.display === 'block') adjustTooltip(e, tt1);
-    if (tt2 && tt2.style.display === 'block') adjustTooltip(e, tt2);
+    if (tt1 && tt1.style.display === 'block') window.adjustTooltip(e, tt1);
+    if (tt2 && tt2.style.display === 'block') window.adjustTooltip(e, tt2);
 });
 
 document.addEventListener('mouseout', (e) => {
@@ -1326,7 +1323,7 @@ document.addEventListener('mouseout', (e) => {
 });
 
 window.copyScript = function(fullCode) {
-    const cacheData = AI_CACHE.get(fullCode);
+    const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
     
     const contentToCopy = cacheData.rawScript; 
@@ -1527,7 +1524,7 @@ window.showCloudGalScriptModal = function(id) {
             <h3 style="margin:0; color:#0ea5e9;">Prompt for [${data.code || data.fullCode}]</h3>
             <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px;">📋 Copy Prompt</button>
         </div>
-        <div style="color:#333; white-space:pre-wrap; background:#f8fafc; border:1px solid #e2e8f0; padding:15px; border-radius:6px; font-size:14px; line-height:1.6; max-height: 60vh; overflow-y: auto;">${promptText}</div>
+        <div style="color:#333; white-space:pre-wrap; background:#f8fafc; border:1px solid #e2e8f0; padding:15px; border-radius:6px; font-size:14px; line-height:1.6; max-height: 60vh; overflow-y: auto;">${promptText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
     `;
     document.getElementById('script-modal').style.display = 'flex';
 };

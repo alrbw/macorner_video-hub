@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V61 (Smart Suggest @image, Custom Ref Upload, Gallery & Store Smart SaaS UI)
+ * FULL AUTO V61 (Smart Suggest @image with Caret Tracking, Custom Ref Upload, Gallery Smart Filter)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -168,7 +168,7 @@ document.getElementById('csvFileInput').addEventListener('change', function (e) 
                 elements: cleanAdName.match(/\d{10}/) ? cleanAdName.match(/\d{10}/)[0] : null
             };
         }).filter(i => i);
-        document.getElementById('fileStatus').textContent = "Loaded: " + window.RAW_DATA.length;
+        document.getElementById('fileStatus').innerHTML = `<i class="ph ph-database"></i> Loaded: ${window.RAW_DATA.length}`;
     };
     reader.readAsText(file);
 });
@@ -478,7 +478,7 @@ window.updateMixArea = function() {
         headers.innerHTML += `<button class="tab-btn ${currentActive === key ? 'active' : ''}" data-key="${key}" onclick="window.switchTab('${key}', 'tabHeaders', 'tabContents')">Pair ${key}</button>`;
         const pane = document.createElement('div');
         pane.className = 'tab-pane'; pane.id = `pane-${key}`;
-        pane.innerHTML = `<button class="btn-primary" onclick="window.forceRegenerateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container" id="mix-table-${key}"></div>`;
+        pane.innerHTML = `<button class="btn-primary" onclick="window.forceRegenerateMixForTab('${key}')" style="margin-bottom:15px">Generate Mix E1 & E5</button><div class="table-container no-border" id="mix-table-${key}"></div>`;
         contents.appendChild(pane);
         window.generateMixForTab(key);
     });
@@ -569,7 +569,7 @@ window.updateTokenDisplay = function() {
     }
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION
+// XỬ LÝ UPLOAD ẢNH CUSTOM
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -679,11 +679,10 @@ window.handlePromptInput = function(code, textarea) {
         });
         
         if (hasMatch) {
-            // Tích hợp logic tọa độ mới ở đây
             const coords = window.getCaretCoordinates(textarea, cursor);
-            suggestBox.style.bottom = 'auto'; // Gỡ ghim đáy
-            suggestBox.style.top = (coords.top - textarea.scrollTop + 30) + 'px'; // Hạ xuống 1 dòng so với con trỏ
-            suggestBox.style.left = Math.min(coords.left - textarea.scrollLeft + 15, textarea.offsetWidth - 160) + 'px'; // Tránh tràn lề phải
+            suggestBox.style.bottom = 'auto'; 
+            suggestBox.style.top = (coords.top - textarea.scrollTop + 30) + 'px'; 
+            suggestBox.style.left = Math.min(coords.left - textarea.scrollLeft + 15, textarea.offsetWidth - 160) + 'px'; 
             
             suggestBox.innerHTML = html;
             suggestBox.style.display = 'block';
@@ -748,20 +747,20 @@ window.renderReviewView = function() {
     if (!displayProductName) displayProductName = "Personalized Custom Gift";
 
     const linkBadgeHtml = window.GLOBAL_SCRAPED_DATA
-        ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;">✓ Data Connected</span>`
+        ? `<span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:15px; border: 1px solid #10b981;"><i class="ph ph-check-circle"></i> Data Connected</span>`
         : "";
 
     const imgPreviewHtml = window.GLOBAL_IMAGE_URL
         ? `<img src="${window.GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
-    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;">🪙 BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
+    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;"><i class="ph ph-coins"></i> BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
     
     const customUploadHtml = `
         <div style="display:flex; align-items:center; gap:12px;">
             <div id="custom-img-preview" style="display:flex; gap:8px;"></div>
             <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-                + Add Reference Image
+                <i class="ph ph-plus"></i> Add Reference
                 <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
             </label>
         </div>
@@ -769,7 +768,7 @@ window.renderReviewView = function() {
 
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
-    pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
+    pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
     pbContainer.innerHTML = `
         <div style="display:flex; align-items:center;">
             ${imgPreviewHtml}
@@ -815,21 +814,21 @@ window.renderReviewView = function() {
             const promptResultDisplay = ugcPromptResult ? 'block' : 'none';
 
             const aiRowStyle = hasCache && isExpanded ? 'table-row' : 'none';
-            const btnText = hasCache ? '✨ Redo' : '✨ Create';
-            const toggleIcon = isExpanded ? '▼' : '▶';
+            const btnText = hasCache ? '<i class="ph ph-sparkle"></i> Redo' : '<i class="ph ph-sparkle"></i> Create';
+            const toggleIcon = isExpanded ? '<i class="ph ph-caret-down"></i>' : '<i class="ph ph-caret-right"></i>';
             const toggleDisplay = hasCache ? 'inline-block' : 'none';
 
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
-            let videoBtnHtml = `<button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">🎥 Generate Video</button>`;
+            let videoBtnHtml = `<button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
             
             if (videoStatus === 'generating') {
-                videoBtnHtml = `<button disabled id="video-btn-${code}" title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;">⏳ Generating (${videoTime}s)...</button>`;
+                videoBtnHtml = `<button disabled id="video-btn-${code}" title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner"></i> Generating (${videoTime}s)...</button>`;
             } else if (videoStatus === 'succeeded') {
-                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;">✅ Video Ready!</button>`;
+                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;"><i class="ph ph-check-circle"></i> Video Ready!</button>`;
             }
 
-            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+            const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
             
             const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
@@ -837,18 +836,18 @@ window.renderReviewView = function() {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
                     <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
                     <div style="display:flex; gap:8px; margin-left:auto;">
-                        <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;">✏️ Edit</button>
-                        <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;">📋 Copy Prompt</button>
+                        <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;"><i class="ph ph-note-pencil"></i> Edit</button>
+                        <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;"><i class="ph ph-copy"></i> Copy Prompt</button>
                         ${videoBtnHtml}
                     </div>
                 </div>
                 
                 <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
                     <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                    <div id="suggest-box-${code}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                    <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
-                        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">💾 Save Edit</button>
+                        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                     </div>
                 </div>
                 
@@ -857,10 +856,10 @@ window.renderReviewView = function() {
 
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
-                    <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;">🎬 Generate Video Shooting Prompt</h4>
+                    <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;"><i class="ph ph-film-strip"></i> Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
-                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);">✨ Generate</button>
+                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);"><i class="ph ph-sparkle"></i> Generate</button>
                     </div>
                     <div id="prompt-result-${code}" style="display: ${promptResultDisplay}; position:relative;">${ugcPromptResultContent}</div>
                 </div>
@@ -898,11 +897,11 @@ window.toggleAI = function(code) {
 
     if (row.style.display === 'none') {
         row.style.display = 'table-row';
-        btn.innerText = '▼';
+        btn.innerHTML = '<i class="ph ph-caret-down"></i>';
         cacheData.expanded = true;
     } else {
         row.style.display = 'none';
-        btn.innerText = '▶';
+        btn.innerHTML = '<i class="ph ph-caret-right"></i>';
         cacheData.expanded = false;
     }
     window.saveStateToCache(); 
@@ -934,10 +933,10 @@ window.generateAIScript = async function(fullCode, btn) {
     const toggleBtn = document.getElementById(`toggle-btn-${fullCode}`);
 
     row.style.display = 'table-row';
-    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerText = '▼'; }
+    if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerHTML = '<i class="ph ph-caret-down"></i>'; }
     btn.disabled = true;
 
-    let processText = window.GLOBAL_IMAGE_URL ? `<i>⏳ Loading...</i>` : `<i>⏳</i>`;
+    let processText = window.GLOBAL_IMAGE_URL ? `<i><i class="ph ph-spinner"></i> Loading...</i>` : `<i>⏳</i>`;
     resultBox.innerHTML = processText;
 
     try {
@@ -973,14 +972,14 @@ window.generateAIScript = async function(fullCode, btn) {
         if (data.error) throw new Error(data.error);
 
         let badges = [];
-        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">👁️ AI OCR Vision</span>`);
+        if (data.hasImage) badges.push(`<span style="background:#fce7f3; color:#be185d; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;"><i class="ph ph-eye"></i> AI OCR Vision</span>`);
 
         const badgesHtml = badges.join('');
         const rawScriptText = data.script;
 
-        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt">🎬 Prompt</button>`;
-        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy">📋 Copy Script</button>`;
-        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save">💾 Save</button>`;
+        const promptBtnHtml = `<button onclick="window.togglePromptForm('${fullCode}')" id="prompt-btn-${fullCode}" class="modern-action-btn btn-prompt"><i class="ph ph-film-strip"></i> Prompt</button>`;
+        const copyBtnHtml = `<button onclick="window.copyScript('${fullCode}')" id="copy-btn-${fullCode}" class="modern-action-btn btn-copy"><i class="ph ph-copy"></i> Copy Script</button>`;
+        const saveBtnHtml = `<button onclick="window.saveScript('${fullCode}')" id="save-btn-${fullCode}" class="modern-action-btn btn-save"><i class="ph ph-floppy-disk"></i> Save</button>`;
 
         const scriptHtml = `
             <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
@@ -1004,7 +1003,7 @@ window.generateAIScript = async function(fullCode, btn) {
         resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
     } finally {
         btn.disabled = false;
-        btn.innerText = "✨ Redo";
+        btn.innerHTML = "<i class='ph ph-sparkle'></i> Redo";
     }
 }
 
@@ -1022,7 +1021,7 @@ window.generateShootingPrompt = async function(fullCode) {
 
     recipientInput.setAttribute('value', recipientDesc);
 
-    btn.innerText = "⏳...";
+    btn.innerHTML = "<i class='ph ph-spinner'></i>...";
     btn.disabled = true;
     resultBox.style.display = 'block';
     resultBox.innerHTML = `<i>⏳ Generating Shooting Prompt...</i>`;
@@ -1045,7 +1044,7 @@ window.generateShootingPrompt = async function(fullCode) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+        const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
         
         const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
@@ -1053,9 +1052,9 @@ window.generateShootingPrompt = async function(fullCode) {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
                 <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
                 <div style="display:flex; gap:8px; margin-left:auto;">
-                    <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px;">📋 Copy Prompt</button>
-                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px;">🎥 Generate Video</button>
+                    <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;"><i class="ph ph-note-pencil"></i> Edit</button>
+                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;"><i class="ph ph-copy"></i> Copy Prompt</button>
+                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;"><i class="ph ph-video-camera"></i> Generate Video</button>
                 </div>
             </div>
             
@@ -1063,11 +1062,11 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                     <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">💾 Save Edit</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                 </div>
             </div>
         `;
@@ -1082,7 +1081,7 @@ window.generateShootingPrompt = async function(fullCode) {
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
     } finally {
-        btn.innerText = "✨ Generate";
+        btn.innerHTML = "<i class='ph ph-sparkle'></i> Generate";
         btn.disabled = false;
     }
 }
@@ -1156,7 +1155,7 @@ window.generateVideo = async function(fullCode) {
 
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
-        initialBtn.innerText = "⏳ Requesting...";
+        initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
         initialBtn.disabled = true;
         initialBtn.style.opacity = "0.7";
         initialBtn.style.cursor = "not-allowed";
@@ -1190,7 +1189,7 @@ window.generateVideo = async function(fullCode) {
             
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
-                currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
+                currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
             }
 
             try {
@@ -1211,7 +1210,7 @@ window.generateVideo = async function(fullCode) {
                     window.saveStateToCache();
 
                     if (currentBtn) {
-                        currentBtn.innerText = "✅ Video Ready!";
+                        currentBtn.innerHTML = "<i class='ph ph-check-circle'></i> Video Ready!";
                         currentBtn.style.background = "#10b981";
                         currentBtn.style.color = "white";
                         currentBtn.style.opacity = "1";
@@ -1220,6 +1219,7 @@ window.generateVideo = async function(fullCode) {
 
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Product");
+
                     const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : window.GLOBAL_IMAGE_URL;
 
                     try {
@@ -1235,7 +1235,6 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
-                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1252,7 +1251,7 @@ window.generateVideo = async function(fullCode) {
                 
                 const errBtn = document.getElementById(`video-btn-${fullCode}`);
                 if (errBtn) {
-                    errBtn.innerText = "🎥 Generate Video";
+                    errBtn.innerHTML = "<i class='ph ph-video-camera'></i> Generate Video";
                     errBtn.disabled = false;
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
@@ -1267,7 +1266,7 @@ window.generateVideo = async function(fullCode) {
                 
                 const timeoutBtn = document.getElementById(`video-btn-${fullCode}`);
                 if (timeoutBtn) {
-                    timeoutBtn.innerText = "🎥 Generate Video";
+                    timeoutBtn.innerHTML = "<i class='ph ph-video-camera'></i> Generate Video";
                     timeoutBtn.disabled = false;
                     timeoutBtn.style.opacity = "1";
                     timeoutBtn.style.cursor = "pointer";
@@ -1283,7 +1282,7 @@ window.generateVideo = async function(fullCode) {
         
         const errBtn = document.getElementById(`video-btn-${fullCode}`);
         if(errBtn) {
-            errBtn.innerText = "🎥 Generate Video";
+            errBtn.innerHTML = "<i class='ph ph-video-camera'></i> Generate Video";
             errBtn.disabled = false;
             errBtn.style.opacity = "1";
             errBtn.style.cursor = "pointer";
@@ -1344,6 +1343,64 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
+// KHÔI PHỤC HÀM SAVE SCRIPT
+window.saveScript = async function(fullCode) {
+    const cacheData = window.AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) {
+        alert("Lỗi: Không tìm thấy nội dung kịch bản để lưu (Có thể do tải lại trang). Vui lòng tạo lại Script!");
+        return;
+    }
+    
+    const productBase = window.GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
+    let finalContent = cacheData.rawScript;
+    
+    if (cacheData.shootingPrompt) {
+        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
+    }
+
+    const btn = document.getElementById(`save-btn-${fullCode}`);
+    if (btn) {
+        btn.innerHTML = "<i class='ph ph-spinner'></i> Saving...";
+        btn.disabled = true;
+    }
+
+    try {
+        const payload = {
+            code: fullCode,
+            productBase: productBase,
+            targetCode: window.GLOBAL_TARGET_CODE || fullCode.substring(0,3),
+            content: finalContent
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Máy chủ từ chối lưu dữ liệu");
+        
+        if (btn) {
+            btn.innerHTML = "<i class='ph ph-check-circle'></i> Saved!";
+            setTimeout(() => { 
+                btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
+                btn.disabled = false; 
+            }, 2000);
+        }
+        
+        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
+            window.renderStore();
+        }
+    } catch (e) {
+        console.error("Lỗi Save Store:", e);
+        alert(`Có lỗi khi lưu lên Cloud: ${e.message}`);
+        if (btn) { 
+            btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
+            btn.disabled = false; 
+        }
+    }
+};
+
 window.copyScript = function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return;
@@ -1358,8 +1415,8 @@ window.copyScript = function(fullCode) {
     navigator.clipboard.writeText(cleanedScript).then(() => {
         const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
         if (copyBtn) {
-            copyBtn.innerText = '✅ Copied!';
-            setTimeout(() => { copyBtn.innerText = '📋 Copy Script'; }, 2000);
+            copyBtn.innerHTML = '<i class="ph ph-check"></i> Copied!';
+            setTimeout(() => { copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copy Script'; }, 2000);
         }
     }).catch(() => {
         const ta = document.createElement('textarea');
@@ -1370,167 +1427,6 @@ window.copyScript = function(fullCode) {
         document.body.removeChild(ta);
     });
 };
-
-// =====================================================================
-// ĐỒNG BỘ GIAO DIỆN SCRIPT STORE CHUẨN MINIMALISM SAAS
-// =====================================================================
-window.STORE_DATA_CACHE = [];
-
-window.buildStoreUI = function() {
-    const storePane = document.getElementById('view-store');
-    if (!storePane) return; 
-
-    let listContainer = document.getElementById('store-container-wrap');
-    if (!listContainer) {
-        storePane.innerHTML = `
-            <header class="top-nav">
-                <div>
-                    <h2>Cloud Script Store</h2>
-                    <p class="subtitle">Manage and retrieve all your saved AI scripts from any local instance.</p>
-                </div>
-                <button class="modern-action-btn btn-copy" onclick="window.clearStore()" style="color: #ef4444; border-color: #fca5a5;"><i class="ph ph-trash"></i> Clear All Store</button>
-            </header>
-            <section class="card" id="store-container-wrap" style="padding: 24px;">
-                <div id="store-toolbar" style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center;">
-                    <div class="search-bar" style="flex:1; min-width:240px; margin-top:0;">
-                        <i class="ph ph-magnifying-glass search-icon"></i>
-                        <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()">
-                    </div>
-                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0; font-size:14px; outline:none; font-family:inherit; background:white; color:#334155; cursor:pointer;">
-                        <option value="newest">Newest first</option>
-                        <option value="oldest">Oldest first</option>
-                        <option value="code">By code A–Z</option>
-                    </select>
-                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#ea580c; background:#fff7ed; padding:10px 16px; border-radius:10px; border:1px solid #fed7aa; user-select:none;">
-                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c; width:16px; height:16px;">
-                        <i class="ph ph-star"></i> Favorites Only
-                    </label>
-                </div>
-                <div id="store-count" style="font-size:13px; color:#64748b; font-weight:500; margin-bottom:16px;"></div>
-                <div style="display:flex; gap:24px; align-items:flex-start;">
-                    <div id="store-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
-                    <div id="store-list" style="display:flex; flex-direction:column; gap:20px; flex:1;"></div>
-                </div>
-                <div id="store-empty" class="empty-state" style="display:none; width:100%;">
-                    <i class="ph ph-empty"></i>
-                    <h4>No scripts archived</h4>
-                    <p>Hit save inside Selection Review to synchronize assets to this view.</p>
-                </div>
-            </section>
-        `;
-    }
-};
-
-window.renderStore = async function() {
-    window.buildStoreUI();
-    const listDiv = document.getElementById('store-list');
-    if(!listDiv) return;
-
-    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px; width:100%;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
-    
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
-        let store = await res.json();
-        window.STORE_DATA_CACHE = store;
-        window.currentStoreFilter = 'all'; 
-        window.updateStoreUI();
-    } catch (e) {
-        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
-    }
-}
-
-window.updateStoreUI = function() {
-    const listDiv = document.getElementById('store-list');
-    const emptyDiv = document.getElementById('store-empty');
-    const countDiv = document.getElementById('store-count');
-    const sidebarDiv = document.getElementById('store-sidebar');
-    
-    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
-    const sortVal = document.getElementById('store-sort')?.value || "newest";
-    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
-
-    if(!listDiv) return;
-
-    let filtered = window.STORE_DATA_CACHE.filter(s => {
-        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        if (isFavOnly && !s.isFavorite) return false;
-        
-        return s.code.toLowerCase().includes(searchVal) || 
-               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
-               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
-    });
-
-    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
-    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
-    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) SAVED ON CLOUD LOCAL`;
-
-    if (filtered.length === 0) {
-        listDiv.innerHTML = '';
-        if (sidebarDiv) sidebarDiv.innerHTML = '';
-        emptyDiv.style.display = 'block';
-        return;
-    }
-    emptyDiv.style.display = 'none';
-
-    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
-    window.STORE_DATA_CACHE.forEach(s => {
-        const tc = s.targetCode || 'OTHER';
-        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
-    });
-
-    let sidebarHtml = `
-        <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
-        </div>`;
-
-    Object.keys(groupCounts).forEach(tc => {
-        if (tc === 'ALL') return;
-        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
-        sidebarHtml += `
-            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
-                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
-            </div>
-        `;
-    });
-    if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
-
-    let cardsHtml = '';
-    filtered.forEach(s => {
-        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const dateStr = new Date(s.date).toLocaleString();
-        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
-        
-        cardsHtml += `
-            <div style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); position:relative; display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:22px; color:${starColor}; transition: transform 0.2s; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-                            <i class="${s.isFavorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i>
-                        </button>
-                        <div>
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
-                                <span style="font-size:16px; font-weight:700; color:var(--text-main);">${s.code}</span>
-                                <span style="font-size:11px; background:var(--primary-light); padding:2px 8px; border-radius:6px; color:var(--primary); border: 1px solid var(--primary-border); font-weight: bold; text-transform:uppercase;">${s.productBase}</span>
-                            </div>
-                            <div style="font-size:12px; color:var(--text-muted); font-weight:500;">
-                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:8px; margin-left:auto;">
-                        <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='📋 Copy', 2000);" class="modern-action-btn btn-copy" style="padding:6px 12px; font-size:12px;"><i class="ph ph-copy"></i> Copy</button>
-                        <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" class="modern-action-btn btn-save" style="padding:6px 12px; font-size:12px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;"><i class="ph ph-download-simple"></i> Download</button>
-                        <button onclick="window.deleteScript('${s.id}')" class="modern-action-btn btn-copy" style="padding:6px 10px; font-size:12px; color:#dc2626; border-color:#fca5a5;"><i class="ph ph-trash"></i></button>
-                    </div>
-                </div>
-                <div style="background:#f8fafc; padding:16px; border-radius:8px; font-size:14px; line-height:1.6; color:var(--text-body); max-height:220px; overflow-y:auto; border:1px solid var(--border-divider); white-space:pre-wrap; font-family:inherit;">${s.content}</div>
-            </div>
-        `;
-    });
-    listDiv.innerHTML = cardsHtml;
-}
 
 // ==========================================
 // SCENE GALLERY SMART FILTER LOCAL CLOUD
@@ -1549,7 +1445,7 @@ window.buildGalleryUI = function() {
                     <h2>Cloud Scene Gallery</h2>
                     <p class="subtitle">Review and manage all your generated short-form UGC videos securely stored on the cloud.</p>
                 </div>
-                <button class="btn-danger" onclick="window.clearGallery()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All Gallery</button>
+                <button class="btn-danger" onclick="window.clearGallery()" style="font-size:13px; padding:6px 14px;"><i class="ph ph-trash"></i> Clear All Gallery</button>
             </header>
             <section class="card" id="gallery-container-wrap" style="padding: 24px;">
                 <div id="gallery-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
@@ -1683,7 +1579,7 @@ window.updateGalleryUI = function() {
         cardsHtml += `
             <div class="gallery-card" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
                 <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; position:relative;">
-                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:4px; color:#dc2626; cursor:pointer; font-size:14px; padding:4px 6px; z-index:10;" title="Xóa khỏi Cloud Local">🗑️</button>
+                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:4px; color:#dc2626; cursor:pointer; font-size:14px; padding:4px 6px; z-index:10;" title="Xóa khỏi Cloud Local"><i class="ph ph-trash"></i></button>
                     ${mediaHtml}
                 </div>
                 <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
@@ -1692,7 +1588,7 @@ window.updateGalleryUI = function() {
                         <b>Product Base:</b> <span style="text-transform:uppercase;">${data.productBase}</span><br>
                         <b>Video Code:</b> ${fullC}
                     </p>
-                    <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;">📝 Check Prompt</button>
+                    <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;"><i class="ph ph-note-pencil"></i> Check Prompt</button>
                 </div>
             </div>
         `;
@@ -1706,13 +1602,13 @@ window.showCloudGalScriptModal = function(id) {
     
     const promptText = data.prompt || data.script || data.content || '';
     const safePrompt = promptText.replace(/"/g, '&quot;').replace(/`/g, '\\`');
-    const copyPromptStr = `navigator.clipboard.writeText(\`${safePrompt}\`); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
+    const copyPromptStr = `navigator.clipboard.writeText(\`${safePrompt}\`); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
     
     const content = document.getElementById('script-modal-content');
     content.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h3 style="margin:0; color:#0ea5e9;">Prompt for [${data.code || data.fullCode}]</h3>
-            <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px;">📋 Copy Prompt</button>
+            <button onclick="${copyPromptStr}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px;"><i class="ph ph-copy"></i> Copy Prompt</button>
         </div>
         <div style="color:#333; white-space:pre-wrap; background:#f8fafc; border:1px solid #e2e8f0; padding:15px; border-radius:6px; font-size:14px; line-height:1.6; max-height: 60vh; overflow-y: auto;">${promptText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
     `;

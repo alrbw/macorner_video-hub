@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V61 (Smart Suggest @image, Custom Ref Upload, Gallery Smart Filter)
+ * FULL AUTO V61 (Smart Suggest @image, Custom Ref Upload, Gallery & Store Smart SaaS UI)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -67,13 +67,11 @@ window.CURRENT_MATRIX_LIMIT = 5;
 
 window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
-window.CUSTOM_IMAGES = []; // Mảng chứa base64 ảnh tự up
+window.CUSTOM_IMAGES = []; 
 
 window.GLOBAL_CACHE_KEY = ""; 
 
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
-
-// KHÔNG CÓ KÝ TỰ LẠ XUNG QUANH URL
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 window.saveStateToCache = function() {
@@ -201,7 +199,7 @@ document.getElementById('btnAnalyze').onclick = async function () {
     const oldPb = document.getElementById('pb-container');
     if (oldPb) oldPb.remove();
 
-    window.CUSTOM_IMAGES = []; // Reset ảnh khi chạy link mới
+    window.CUSTOM_IMAGES = []; 
 
     let tempTargetCode = inputVal;
     let tempProductBase = "";
@@ -800,26 +798,24 @@ window.renderReviewView = function() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
             
-            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">+ @image${i+1}</button>`).join('');
+            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
             const ugcPromptResultContent = ugcPromptResult ? `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
                     <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
                     <div style="display:flex; gap:8px; margin-left:auto;">
-                        <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f0f9ff'">✏️ Edit</button>
-                        <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">📋 Copy Prompt</button>
+                        <button onclick="window.editPrompt('${code}')" id="edit-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;">✏️ Edit</button>
+                        <button onclick="${copyPromptStr}" id="copy-prompt-btn-${code}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;">📋 Copy Prompt</button>
                         ${videoBtnHtml}
                     </div>
                 </div>
                 
                 <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
                     <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                    
                     <div id="suggest-box-${code}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
-                    
                     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-                        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+                        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
+                        <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">💾 Save Edit</button>
                     </div>
                 </div>
                 
@@ -831,7 +827,7 @@ window.renderReviewView = function() {
                     <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;">🎬 Generate Video Shooting Prompt</h4>
                     <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
-                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">✨ Generate</button>
+                        <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);">✨ Generate</button>
                     </div>
                     <div id="prompt-result-${code}" style="display: ${promptResultDisplay}; position:relative;">${ugcPromptResultContent}</div>
                 </div>
@@ -1018,15 +1014,15 @@ window.generateShootingPrompt = async function(fullCode) {
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerText='✅ Copied!'; setTimeout(()=>this.innerText='📋 Copy Prompt', 2000);`;
         
-        const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">+ @image${i+1}</button>`).join('');
+        const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
         resultBox.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
                 <div class="insert-img-toolbar" style="display:none; gap:6px;">${insertTagsHtml}</div>
                 <div style="display:flex; gap:8px; margin-left:auto;">
                     <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;">✏️ Edit</button>
-                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;">📋 Copy Prompt</button>
-                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;">🎥 Generate Video</button>
+                    <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px;">📋 Copy Prompt</button>
+                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px;">🎥 Generate Video</button>
                 </div>
             </div>
             
@@ -1034,11 +1030,11 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">💾 Save Edit</button>
                 </div>
             </div>
         `;
@@ -1120,13 +1116,11 @@ window.generateVideo = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     window.AI_CACHE.set(fullCode, cacheData);
     window.saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -1154,7 +1148,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1162,7 +1155,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             window.AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -1177,7 +1169,6 @@ window.generateVideo = async function(fullCode) {
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
                     
-                    // Cập nhật Token UI
                     if (statusData.usage && statusData.usage > 0) {
                         window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
                         localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
@@ -1196,7 +1187,6 @@ window.generateVideo = async function(fullCode) {
 
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Product");
-
                     const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : window.GLOBAL_IMAGE_URL;
 
                     try {
@@ -1234,10 +1224,9 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
-                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 window.AI_CACHE.set(fullCode, cData);
@@ -1349,6 +1338,167 @@ window.copyScript = function(fullCode) {
     });
 };
 
+// =====================================================================
+// ĐỒNG BỘ GIAO DIỆN SCRIPT STORE CHUẨN MINIMALISM SAAS
+// =====================================================================
+window.STORE_DATA_CACHE = [];
+
+window.buildStoreUI = function() {
+    const storePane = document.getElementById('view-store');
+    if (!storePane) return; 
+
+    let listContainer = document.getElementById('store-container-wrap');
+    if (!listContainer) {
+        storePane.innerHTML = `
+            <header class="top-nav">
+                <div>
+                    <h2>Cloud Script Store</h2>
+                    <p class="subtitle">Manage and retrieve all your saved AI scripts from any local instance.</p>
+                </div>
+                <button class="modern-action-btn btn-copy" onclick="window.clearStore()" style="color: #ef4444; border-color: #fca5a5;"><i class="ph ph-trash"></i> Clear All Store</button>
+            </header>
+            <section class="card" id="store-container-wrap" style="padding: 24px;">
+                <div id="store-toolbar" style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center;">
+                    <div class="search-bar" style="flex:1; min-width:240px; margin-top:0;">
+                        <i class="ph ph-magnifying-glass search-icon"></i>
+                        <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()">
+                    </div>
+                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0; font-size:14px; outline:none; font-family:inherit; background:white; color:#334155; cursor:pointer;">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="code">By code A–Z</option>
+                    </select>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#ea580c; background:#fff7ed; padding:10px 16px; border-radius:10px; border:1px solid #fed7aa; user-select:none;">
+                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c; width:16px; height:16px;">
+                        <i class="ph ph-star"></i> Favorites Only
+                    </label>
+                </div>
+                <div id="store-count" style="font-size:13px; color:#64748b; font-weight:500; margin-bottom:16px;"></div>
+                <div style="display:flex; gap:24px; align-items:flex-start;">
+                    <div id="store-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
+                    <div id="store-list" style="display:flex; flex-direction:column; gap:20px; flex:1;"></div>
+                </div>
+                <div id="store-empty" class="empty-state" style="display:none; width:100%;">
+                    <i class="ph ph-empty"></i>
+                    <h4>No scripts archived</h4>
+                    <p>Hit save inside Selection Review to synchronize assets to this view.</p>
+                </div>
+            </section>
+        `;
+    }
+};
+
+window.renderStore = async function() {
+    window.buildStoreUI();
+    const listDiv = document.getElementById('store-list');
+    if(!listDiv) return;
+
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px; width:100%;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
+        let store = await res.json();
+        window.STORE_DATA_CACHE = store;
+        window.currentStoreFilter = 'all'; 
+        window.updateStoreUI();
+    } catch (e) {
+        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
+    }
+}
+
+window.updateStoreUI = function() {
+    const listDiv = document.getElementById('store-list');
+    const emptyDiv = document.getElementById('store-empty');
+    const countDiv = document.getElementById('store-count');
+    const sidebarDiv = document.getElementById('store-sidebar');
+    
+    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
+    const sortVal = document.getElementById('store-sort')?.value || "newest";
+    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
+
+    if(!listDiv) return;
+
+    let filtered = window.STORE_DATA_CACHE.filter(s => {
+        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
+        if (isFavOnly && !s.isFavorite) return false;
+        
+        return s.code.toLowerCase().includes(searchVal) || 
+               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
+               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
+    });
+
+    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
+    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) SAVED ON CLOUD LOCAL`;
+
+    if (filtered.length === 0) {
+        listDiv.innerHTML = '';
+        if (sidebarDiv) sidebarDiv.innerHTML = '';
+        emptyDiv.style.display = 'block';
+        return;
+    }
+    emptyDiv.style.display = 'none';
+
+    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
+    window.STORE_DATA_CACHE.forEach(s => {
+        const tc = s.targetCode || 'OTHER';
+        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+    });
+
+    let sidebarHtml = `
+        <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
+        </div>`;
+
+    Object.keys(groupCounts).forEach(tc => {
+        if (tc === 'ALL') return;
+        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+        sidebarHtml += `
+            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            </div>
+        `;
+    });
+    if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
+
+    let cardsHtml = '';
+    filtered.forEach(s => {
+        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const dateStr = new Date(s.date).toLocaleString();
+        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
+        
+        cardsHtml += `
+            <div style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); position:relative; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:22px; color:${starColor}; transition: transform 0.2s; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                            <i class="${s.isFavorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i>
+                        </button>
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                <span style="font-size:16px; font-weight:700; color:var(--text-main);">${s.code}</span>
+                                <span style="font-size:11px; background:var(--primary-light); padding:2px 8px; border-radius:6px; color:var(--primary); border: 1px solid var(--primary-border); font-weight: bold; text-transform:uppercase;">${s.productBase}</span>
+                            </div>
+                            <div style="font-size:12px; color:var(--text-muted); font-weight:500;">
+                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-left:auto;">
+                        <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='📋 Copy', 2000);" class="modern-action-btn btn-copy" style="padding:6px 12px; font-size:12px;"><i class="ph ph-copy"></i> Copy</button>
+                        <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" class="modern-action-btn btn-save" style="padding:6px 12px; font-size:12px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;"><i class="ph ph-download-simple"></i> Download</button>
+                        <button onclick="window.deleteScript('${s.id}')" class="modern-action-btn btn-copy" style="padding:6px 10px; font-size:12px; color:#dc2626; border-color:#fca5a5;"><i class="ph ph-trash"></i></button>
+                    </div>
+                </div>
+                <div style="background:#f8fafc; padding:16px; border-radius:8px; font-size:14px; line-height:1.6; color:var(--text-body); max-height:220px; overflow-y:auto; border:1px solid var(--border-divider); white-space:pre-wrap; font-family:inherit;">${s.content}</div>
+            </div>
+        `;
+    });
+    listDiv.innerHTML = cardsHtml;
+}
+
 // ==========================================
 // SCENE GALLERY SMART FILTER LOCAL CLOUD
 // ==========================================
@@ -1362,10 +1512,13 @@ window.buildGalleryUI = function() {
     if (!wrap) {
         galleryPane.innerHTML = `
             <header class="top-nav">
-                <h2>Cloud Scene Gallery</h2>
+                <div>
+                    <h2>Cloud Scene Gallery</h2>
+                    <p class="subtitle">Review and manage all your generated short-form UGC videos securely stored on the cloud.</p>
+                </div>
                 <button class="btn-danger" onclick="window.clearGallery()" style="font-size:13px; padding:6px 14px;">🗑️ Clear All Gallery</button>
             </header>
-            <section class="card" id="gallery-container-wrap">
+            <section class="card" id="gallery-container-wrap" style="padding: 24px;">
                 <div id="gallery-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
                     <strong style="color:#64748b; font-size:13px; margin-right:10px;">LỌC:</strong>
                     <select id="smart-filter-type" onchange="window.updateSmartDatalist()" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:140px; outline:none;">
@@ -1380,7 +1533,11 @@ window.buildGalleryUI = function() {
                     <div id="gallery-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
                     <div id="gallery-grid" class="gallery-grid" style="display:flex; flex-wrap:wrap; gap:20px; flex:1;"></div>
                 </div>
-                <div id="gallery-empty" style="padding:40px; text-align:center; color:#94a3b8; display:none; width:100%;">No videos in Cloud Gallery yet.</div>
+                <div id="gallery-empty" class="empty-state" style="display:none; width:100%;">
+                    <i class="ph ph-video-camera-slash"></i>
+                    <h4>No video contents found</h4>
+                    <p>Generate video content inside Selection Review to see assets rendered here.</p>
+                </div>
             </section>
         `;
     }

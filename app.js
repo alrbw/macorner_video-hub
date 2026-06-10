@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V64 (Minimalism Gallery Sync, Smart Filter Sorting)
+ * FULL AUTO V65 (Fix Tab Jumping, Modal Outside Click, Close Button Overlap)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -34,7 +34,7 @@ if (!document.getElementById('modern-ui-styles')) {
         .gallery-video:-moz-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
         .gallery-video:fullscreen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
         
-        /* Box Upload Image - Stack & Dropdown */
+        /* Box Upload Image */
         .custom-upload-area { display: flex; gap: 8px; align-items: center; }
         .upload-thumb-wrap { position: relative; width: 44px; height: 44px; border-radius: 6px; border: 1px solid #cbd5e1; overflow: hidden; background: #f1f5f9; }
         .upload-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
@@ -42,10 +42,6 @@ if (!document.getElementById('modern-ui-styles')) {
         
         .smart-dropdown-item { padding: 8px 12px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 8px; font-weight: 500;}
         .smart-dropdown-item:hover { background: #fef3c7; color: #ea580c; font-weight: bold; }
-        
-        /* Dropdown Gallery UI */
-        .gallery-toolbar-filter { display:flex; gap:12px; align-items:center; flex:1; min-width:300px; }
-        .gallery-toolbar-sort { display:flex; gap:12px; align-items:center; }
     </style>`);
 }
 
@@ -75,6 +71,7 @@ window.CUSTOM_IMAGES = [];
 
 window.GLOBAL_CACHE_KEY = ""; 
 
+window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 window.saveStateToCache = function() {
@@ -317,6 +314,21 @@ window.renderMatrix = function(niche, limit, targetCode) {
 
     const container = document.getElementById('matrixContainer');
 
+    if (!document.getElementById('canva-btn-style')) {
+        document.head.insertAdjacentHTML('beforeend', `
+        <style id="canva-btn-style">
+            .matrix-scroll-area { width: 100%; overflow-x: auto; padding: 15px 25px 25px 15px; box-sizing: border-box; }
+            .canva-matrix-wrapper { position: relative; display: inline-block; min-width: 100%; }
+            .canva-matrix-wrapper table { width: 100%; border-collapse: collapse; margin: 0; }
+            .canva-add-btn { width: 26px; height: 26px; border-radius: 50%; background: #ffffff; border: 1.5px solid #cbd5e1; color: #64748b; font-size: 18px; font-weight: 500; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.15); transition: all 0.2s ease; position: absolute; z-index: 10; user-select: none; padding-bottom: 2px; box-sizing: border-box; }
+            .canva-add-btn:hover { background: #f8fafc; color: #f97316; border-color: #f97316; transform: scale(1.15); }
+            .canva-add-btn.e2-btn { top: 50%; right: 0px; transform: translate(50%, -50%); }
+            .canva-add-btn.e2-btn:hover { transform: translate(50%, -50%) scale(1.15); }
+            .canva-add-btn.e4-btn { bottom: 0px; left: 50%; transform: translate(-50%, 50%); }
+            .canva-add-btn.e4-btn:hover { transform: translate(-50%, 50%) scale(1.15); }
+        </style>`);
+    }
+
     let html = `<div class="matrix-scroll-area"><div class="canva-matrix-wrapper"><table><thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
     e2List.forEach((e2) => { 
         html += `<th style="text-align: center;"><span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br><small>${e2.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e2.spent.toLocaleString()}</small></th>`; 
@@ -550,7 +562,7 @@ window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     window.renderReviewView();
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK (Đã fix lỗi dead zone hover)
+// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -742,6 +754,10 @@ window.renderReviewView = function() {
     const contents = document.getElementById('reviewTabContents');
     const msg = document.getElementById('no-selection-msg');
 
+    // Lưu lại trạng thái Tab đang mở trước khi xoá (FIX TAB JUMPING)
+    const currentActiveBtn = document.querySelector('#reviewTabHeaders .tab-btn.active');
+    const activeTabKey = currentActiveBtn ? currentActiveBtn.dataset.key : null;
+
     const oldPb = document.getElementById('pb-container');
     if (oldPb) oldPb.remove();
 
@@ -794,9 +810,17 @@ window.renderReviewView = function() {
     });
 
     Object.keys(grouped).forEach((pairKey, idx) => {
-        headers.innerHTML += `<button class="tab-btn ${idx === 0 ? 'active' : ''}" data-key="${pairKey}" onclick="window.switchTab('${pairKey}', 'reviewTabHeaders', 'reviewTabContents')">Pair ${pairKey}</button>`;
+        // Gán trạng thái active nếu là tab đang mở, nếu ko có thì mặc định chọn tab đầu tiên
+        let isActive = false;
+        if (activeTabKey) {
+            isActive = (pairKey === activeTabKey);
+        } else {
+            isActive = (idx === 0);
+        }
+
+        headers.innerHTML += `<button class="tab-btn ${isActive ? 'active' : ''}" data-key="${pairKey}" onclick="window.switchTab('${pairKey}', 'reviewTabHeaders', 'reviewTabContents')">Pair ${pairKey}</button>`;
         const pane = document.createElement('div');
-        pane.className = `tab-pane ${idx === 0 ? 'active' : ''}`;
+        pane.className = `tab-pane ${isActive ? 'active' : ''}`;
         pane.id = `review-pane-${pairKey}`;
 
         let tableHtml = `<table><thead><tr><th>Full Code</th><th>E1</th><th>E2</th><th>E3</th><th>E4</th><th>E5</th><th style="min-width: 150px;">Action</th></tr></thead><tbody>`;
@@ -1066,8 +1090,8 @@ window.generateShootingPrompt = async function(fullCode) {
                 <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'"><i class="ph ph-floppy-disk"></i> Save Edit</button>
+                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-x"></i> Cancel</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                 </div>
             </div>
         `;
@@ -1205,7 +1229,6 @@ window.generateVideo = async function(fullCode) {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
-
                     window.saveStateToCache();
 
                     if (currentBtn) {
@@ -1361,7 +1384,7 @@ document.addEventListener('mouseover', (e) => {
     const box = e.target.closest('.code-box');
     if (box && box.dataset.code) {
         const { type, code } = box.dataset;
-        const info = typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0')) : null;
+        const info = typeof ELEMENTS_DATA !== 'undefined' ? ELEMENTS_DATA[type]?.find(i => i.Code.toString().padStart(2, '0') == code.padStart(2, '0')) : null;
         if (info) {
             const tt = document.getElementById('tooltip');
             const name = info.Detail || info.Hook || info['Insights to niches'] || info.CTA || info['Source/Video Type'] || "N/A";
@@ -1747,7 +1770,6 @@ window.updateGalleryUI = function() {
     const sortVal = document.getElementById('gal-sort')?.value || "newest";
     const isFavOnly = document.getElementById('gal-check-fav-only')?.checked || false;
 
-    // Lọc theo Search & Favorite
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
         if (isFavOnly && !item.isFavorite) return false;
 
@@ -1761,7 +1783,6 @@ window.updateGalleryUI = function() {
         return true;
     });
 
-    // Gom nhóm Sidebar
     let groupCounts = { 'ALL': preFiltered.length };
     preFiltered.forEach(s => {
         const tc = s.targetCode || 'OTHER';
@@ -1784,22 +1805,18 @@ window.updateGalleryUI = function() {
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
-    // Lọc theo mục Sidebar đang chọn
     let finalFiltered = preFiltered.filter(item => {
         if (window.currentGalleryTarget === 'all') return true;
         return item.targetCode === window.currentGalleryTarget;
     });
 
-    // Sort kết quả
     if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
     else if (sortVal === 'az') finalFiltered.sort((a,b) => (a.code || "").localeCompare(b.code || ""));
     else if (sortVal === 'za') finalFiltered.sort((a,b) => (b.code || "").localeCompare(a.code || ""));
     else finalFiltered.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // Hiển thị số lượng
     if(countDiv) countDiv.innerText = `${finalFiltered.length} VIDEO(S) FOUND ON CLOUD`;
 
-    // Hiển thị giao diện rỗng nếu không có data
     if (finalFiltered.length === 0) {
         if (gridDiv) gridDiv.innerHTML = '';
         if (emptyDiv) emptyDiv.style.display = 'block';
@@ -1807,7 +1824,6 @@ window.updateGalleryUI = function() {
     }
     if(emptyDiv) emptyDiv.style.display = 'none';
 
-    // Build HTML Thẻ Video
     let cardsHtml = '';
     finalFiltered.forEach(data => {
         const fullC = data.code || data.fullCode;
@@ -1866,8 +1882,8 @@ window.showCloudGalScriptModal = function(id) {
     
     const content = document.getElementById('script-modal-content');
     content.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <h3 style="margin:0; color:#ea580c;">Prompt for [${data.code || data.fullCode}]</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding-right: 40px;">
+            <h3 style="margin:0; color:#ea580c; font-size: 16px;">Prompt for [${data.code || data.fullCode}]</h3>
             <button onclick="${copyPromptStr}" style="padding: 8px 14px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #ea580c; font-size: 13px; display:flex; align-items:center; gap:6px;"><i class="ph ph-copy"></i> Copy Prompt</button>
         </div>
         <div style="color:#333; white-space:pre-wrap; background:#f8fafc; border:1px solid #e2e8f0; padding:16px; border-radius:8px; font-size:14px; line-height:1.6; max-height: 60vh; overflow-y: auto;">${promptText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
@@ -1892,3 +1908,14 @@ window.clearGallery = async function() {
         await fetch(`${API_BASE_URL}/api/gallery`, { method: 'DELETE' });
     } catch(e) { alert("Lỗi khi Clear Gallery!"); }
 };
+
+// ==========================================
+// GLOBAL EVENT LISTENERS
+// ==========================================
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('script-modal');
+    // Nếu bấm đúng vào phần vùng xám mờ (overlay) bao quanh, thì đóng modal lại
+    if (modal && e.target === modal) {
+        modal.style.display = 'none';
+    }
+});

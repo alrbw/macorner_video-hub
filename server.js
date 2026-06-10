@@ -561,8 +561,15 @@ app.post('/api/generate-video', async (req, res) => {
         } else {
             throw new Error("Failed to create BytePlus task.");
         }
-    } catch (error) {
-        res.status(500).json({ error: error.response?.data?.error?.message || error.message });
+} catch (error) {
+        let errMsg = error.response?.data?.error?.message || error.message;
+        
+        // Vietsub lỗi chặn người thật của BytePlus
+        if (errMsg.toLowerCase().includes("real person")) {
+            errMsg = "API Seedance từ chối tạo video vì phát hiện ảnh mẫu có 'người thật' (Chính sách chống Deepfake). Vui lòng dùng nút '+ Add Reference' để tải lên ảnh sản phẩm không có người và thử lại!";
+        }
+        
+        res.status(500).json({ error: errMsg });
     }
 });
 

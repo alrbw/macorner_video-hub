@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V61 (Smart Suggest @image with Caret Tracking, Custom Ref Upload, Gallery Smart Filter)
+ * FULL AUTO V62 (Minimalism UI, Caret Track @image, Store & Gallery Local Cloud)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -569,7 +569,7 @@ window.updateTokenDisplay = function() {
     }
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM
+// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -1062,11 +1062,11 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
+                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
                 </div>
             </div>
         `;
@@ -1148,11 +1148,13 @@ window.generateVideo = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
+    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     window.AI_CACHE.set(fullCode, cacheData);
     window.saveStateToCache();
 
+    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
@@ -1180,6 +1182,7 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
+        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1187,6 +1190,7 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             window.AI_CACHE.set(fullCode, cData);
             
+            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
@@ -1201,6 +1205,7 @@ window.generateVideo = async function(fullCode) {
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
                     
+                    // Cập nhật Token UI
                     if (statusData.usage && statusData.usage > 0) {
                         window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
                         localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
@@ -1235,6 +1240,7 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
+                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1256,9 +1262,10 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
+                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { 
+            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 window.AI_CACHE.set(fullCode, cData);
@@ -1343,7 +1350,207 @@ document.addEventListener('mouseout', (e) => {
     if (e.target.closest('.full-code-text')) document.getElementById('fullcode-tooltip').style.display = 'none';
 });
 
-// KHÔI PHỤC HÀM SAVE SCRIPT
+window.copyScript = function(fullCode) {
+    const cacheData = window.AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) return;
+    
+    const contentToCopy = cacheData.rawScript; 
+    
+    const cleanedScript = contentToCopy
+        .split('\n')
+        .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
+        .join('\n');
+
+    navigator.clipboard.writeText(cleanedScript).then(() => {
+        const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
+        if (copyBtn) {
+            copyBtn.innerHTML = '<i class="ph ph-check"></i> Copied!';
+            setTimeout(() => { copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copy Script'; }, 2000);
+        }
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = cleanedScript;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    });
+};
+
+// ==========================================
+// ĐỒNG BỘ GIAO DIỆN SCRIPT STORE CHUẨN MINIMALISM SAAS
+// ==========================================
+window.STORE_DATA_CACHE = [];
+
+window.buildStoreUI = function() {
+    const storePane = document.getElementById('view-store');
+    if (!storePane) return; 
+
+    let listContainer = document.getElementById('store-container-wrap');
+    if (!listContainer) {
+        storePane.innerHTML = `
+            <header class="top-nav">
+                <div>
+                    <h2>Cloud Script Store</h2>
+                    <p class="subtitle">Manage and retrieve all your saved AI scripts from any local instance.</p>
+                </div>
+                <button class="modern-action-btn btn-copy" onclick="window.clearStore()" style="color: #ef4444; border-color: #fca5a5;"><i class="ph ph-trash"></i> Clear All Store</button>
+            </header>
+            <section class="card" id="store-container-wrap" style="padding: 24px;">
+                <div id="store-toolbar" style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center;">
+                    <div class="search-bar" style="flex:1; min-width:240px; margin-top:0;">
+                        <i class="ph ph-magnifying-glass search-icon"></i>
+                        <input type="text" id="store-search" placeholder="Search by code or product..." oninput="window.updateStoreUI()">
+                    </div>
+                    <select id="store-sort" onchange="window.updateStoreUI()" style="padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0; font-size:14px; outline:none; font-family:inherit; background:white; color:#334155; cursor:pointer;">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="code">By code A–Z</option>
+                    </select>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#ea580c; background:#fff7ed; padding:10px 16px; border-radius:10px; border:1px solid #fed7aa; user-select:none;">
+                        <input type="checkbox" id="check-fav-only" onchange="window.updateStoreUI()" style="cursor:pointer; accent-color: #ea580c; width:16px; height:16px;">
+                        <i class="ph ph-star"></i> Favorites Only
+                    </label>
+                </div>
+                <div id="store-count" style="font-size:13px; color:#64748b; font-weight:500; margin-bottom:16px;"></div>
+                <div style="display:flex; gap:24px; align-items:flex-start;">
+                    <div id="store-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
+                    <div id="store-list" style="display:flex; flex-direction:column; gap:20px; flex:1;"></div>
+                </div>
+                <div id="store-empty" class="empty-state" style="display:none; width:100%;">
+                    <i class="ph ph-empty"></i>
+                    <h4>No scripts archived</h4>
+                    <p>Hit save inside Selection Review to synchronize assets to this view.</p>
+                </div>
+            </section>
+        `;
+    }
+};
+
+window.renderStore = async function() {
+    window.buildStoreUI();
+    const listDiv = document.getElementById('store-list');
+    if(!listDiv) return;
+
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px; width:100%;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
+        let store = await res.json();
+        window.STORE_DATA_CACHE = store;
+        window.currentStoreFilter = 'all'; 
+        window.updateStoreUI();
+    } catch (e) {
+        listDiv.innerHTML = `<span style="color:red; display:block; padding:40px; text-align:center;">Lỗi kết nối Server: ${e.message}</span>`;
+    }
+}
+
+window.updateStoreUI = function() {
+    const listDiv = document.getElementById('store-list');
+    const emptyDiv = document.getElementById('store-empty');
+    const countDiv = document.getElementById('store-count');
+    const sidebarDiv = document.getElementById('store-sidebar');
+    
+    const searchVal = document.getElementById('store-search')?.value.toLowerCase() || "";
+    const sortVal = document.getElementById('store-sort')?.value || "newest";
+    const isFavOnly = document.getElementById('check-fav-only')?.checked || false;
+
+    if(!listDiv) return;
+
+    let filtered = window.STORE_DATA_CACHE.filter(s => {
+        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
+        if (isFavOnly && !s.isFavorite) return false;
+        
+        return s.code.toLowerCase().includes(searchVal) || 
+               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
+               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
+    });
+
+    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
+    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) SAVED ON CLOUD LOCAL`;
+
+    if (filtered.length === 0) {
+        listDiv.innerHTML = '';
+        if (sidebarDiv) sidebarDiv.innerHTML = '';
+        emptyDiv.style.display = 'block';
+        return;
+    }
+    emptyDiv.style.display = 'none';
+
+    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
+    window.STORE_DATA_CACHE.forEach(s => {
+        const tc = s.targetCode || 'OTHER';
+        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+    });
+
+    let sidebarHtml = `
+        <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
+        </div>`;
+
+    Object.keys(groupCounts).forEach(tc => {
+        if (tc === 'ALL') return;
+        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+        sidebarHtml += `
+            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            </div>
+        `;
+    });
+    if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
+
+    let cardsHtml = '';
+    filtered.forEach(s => {
+        const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const dateStr = new Date(s.date).toLocaleString();
+        const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
+        
+        cardsHtml += `
+            <div style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); position:relative; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button onclick="window.toggleFavorite('${s.id}')" title="Toggle Favorite" style="background:none; border:none; cursor:pointer; font-size:22px; color:${starColor}; transition: transform 0.2s; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                            <i class="${s.isFavorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i>
+                        </button>
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                <span style="font-size:16px; font-weight:700; color:var(--text-main);">${s.code}</span>
+                                <span style="font-size:11px; background:var(--primary-light); padding:2px 8px; border-radius:6px; color:var(--primary); border: 1px solid var(--primary-border); font-weight: bold; text-transform:uppercase;">${s.productBase}</span>
+                            </div>
+                            <div style="font-size:12px; color:var(--text-muted); font-weight:500;">
+                                Ref: ${s.targetCode || 'N/A'} • ${dateStr}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-left:auto;">
+                        <button onclick="navigator.clipboard.writeText(\`${cleanContent}\`); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy', 2000);" class="modern-action-btn btn-copy" style="padding:6px 12px; font-size:12px;"><i class="ph ph-copy"></i> Copy</button>
+                        <button onclick="window.downloadText(\`${s.code}\`, \`${cleanContent}\`)" class="modern-action-btn btn-save" style="padding:6px 12px; font-size:12px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;"><i class="ph ph-download-simple"></i> Download</button>
+                        <button onclick="window.deleteScript('${s.id}')" class="modern-action-btn btn-copy" style="padding:6px 10px; font-size:12px; color:#dc2626; border-color:#fca5a5;"><i class="ph ph-trash"></i></button>
+                    </div>
+                </div>
+                <div style="background:#f8fafc; padding:16px; border-radius:8px; font-size:14px; line-height:1.6; color:var(--text-body); max-height:220px; overflow-y:auto; border:1px solid var(--border-divider); white-space:pre-wrap; font-family:inherit;">${s.content}</div>
+            </div>
+        `;
+    });
+    listDiv.innerHTML = cardsHtml;
+}
+
+window.toggleFavorite = async function(id) {
+    try {
+        const item = window.STORE_DATA_CACHE.find(s => s.id === id);
+        if(item) {
+            item.isFavorite = !item.isFavorite;
+            window.updateStoreUI();
+        }
+        await fetch(`${API_BASE_URL}/api/store/${id}/favorite`, { method: 'PATCH' });
+    } catch(e) {
+        alert("Lỗi khi cập nhật Cloud!");
+    }
+}
+
 window.saveScript = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) {
@@ -1401,32 +1608,33 @@ window.saveScript = async function(fullCode) {
     }
 };
 
-window.copyScript = function(fullCode) {
-    const cacheData = window.AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) return;
-    
-    const contentToCopy = cacheData.rawScript; 
-    
-    const cleanedScript = contentToCopy
-        .split('\n')
-        .map(line => line.replace(/^\[\d+:\d+-\d+:\d+\]\s*/, ''))
-        .join('\n');
+window.deleteScript = async function(id) {
+    if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;
+    try {
+        window.STORE_DATA_CACHE = window.STORE_DATA_CACHE.filter(s => s.id !== id);
+        window.updateStoreUI();
+        await fetch(`${API_BASE_URL}/api/store/${id}`, { method: 'DELETE' });
+    } catch(e) { alert("Lỗi khi xóa!"); }
+}
 
-    navigator.clipboard.writeText(cleanedScript).then(() => {
-        const copyBtn = document.getElementById(`copy-btn-${fullCode}`);
-        if (copyBtn) {
-            copyBtn.innerHTML = '<i class="ph ph-check"></i> Copied!';
-            setTimeout(() => { copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copy Script'; }, 2000);
-        }
-    }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = cleanedScript;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-    });
-};
+window.clearStore = async function() {
+    if(!confirm("⚠️ CẢNH BÁO: Xóa TẤT CẢ kịch bản? Dữ liệu toàn cầu sẽ biến mất!")) return;
+    try {
+        window.STORE_DATA_CACHE = [];
+        window.updateStoreUI();
+        await fetch(`${API_BASE_URL}/api/store`, { method: 'DELETE' });
+    } catch(e) { alert("Lỗi khi xóa!"); }
+}
+
+window.downloadText = function(code, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${code}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
 
 // ==========================================
 // SCENE GALLERY SMART FILTER LOCAL CLOUD

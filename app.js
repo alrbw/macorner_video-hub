@@ -548,7 +548,7 @@ window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     window.renderReviewView();
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK
+// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION (DẠNG STACK MỚI)
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -581,6 +581,7 @@ window.handleUploadImages = async function(e) {
     }
     window.saveStateToCache();
     window.renderCustomImagesPreview();
+    // Đảm bảo không render lại toàn bộ View Review nếu không cần thiết
 };
 
 window.removeCustomImage = function(index) {
@@ -819,7 +820,7 @@ window.renderReviewView = function() {
 
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
-            let videoBtnHtml = `<button title="Generate final video with Seedance 2.0" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
+            let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
             
             if (videoStatus === 'generating') {
                 videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner"></i> Generating (${videoTime}s)...</button>`;
@@ -829,7 +830,7 @@ window.renderReviewView = function() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
             
-            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
+            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">+ @image${i+1}</button>`).join('');
 
             const ugcPromptResultContent = ugcPromptResult ? `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
@@ -843,9 +844,9 @@ window.renderReviewView = function() {
                 
                 <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
                     <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                    <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                    <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
+                        <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-x"></i> Cancel</button>
                         <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                     </div>
                 </div>
@@ -1061,11 +1062,11 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'"><i class="ph ph-floppy-disk"></i> Save Edit</button>
+                    <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-x"></i> Cancel</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                 </div>
             </div>
         `;
@@ -1211,7 +1212,6 @@ window.generateVideo = async function(fullCode) {
 
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Product");
-
                     const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : window.GLOBAL_IMAGE_URL;
 
                     try {
@@ -1227,7 +1227,6 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
-                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1249,10 +1248,9 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
-                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 window.AI_CACHE.set(fullCode, cData);
@@ -1422,7 +1420,7 @@ window.copyScript = function(fullCode) {
 };
 
 // ==========================================
-// ĐỒNG BỘ GIAO DIỆN SCRIPT STORE CHUẨN MINIMALISM SAAS
+// STORE DATA & LARK BASE
 // ==========================================
 window.STORE_DATA_CACHE = [];
 

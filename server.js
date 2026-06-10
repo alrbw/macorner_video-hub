@@ -528,7 +528,7 @@ app.post('/api/generate-video', async (req, res) => {
         const content = [{ type: "text", text: finalPrompt }];
         
         // Ưu tiên Custom Images nếu có up. Seedance tự động hiểu thứ tự mảng này là @image1, @image2...
-        if (customImages && customImages.length > 0) {
+        if (customImages && customImages.length > 10) {
             customImages.forEach((imgBase64) => {
                 content.push({ type: "image_url", image_url: { url: imgBase64 }, role: "reference_image" });
             });

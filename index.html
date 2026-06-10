@@ -16,9 +16,10 @@
 <body>
     <aside class="sidebar">
         <div class="logo">
-            <span class="brand-emphasis">Macorner</span>
-            <span class="brand-sub">Video Hub</span>
+            <div class="brand-emphasis">MACORNER</div>
+            <div class="brand-sub">VIDEO HUB</div>
         </div>
+        
         <nav>
             <div class="nav-item active" id="nav-builder" onclick="switchView('builder')">
                 <i class="ph ph-magic-wand"></i> Strategy Builder
@@ -46,8 +47,8 @@
                 <div class="card-header">
                     <h3>1. Data Initialization</h3>
                     <input type="file" id="csvFileInput" accept=".csv" hidden="">
-                    <button class="btn-primary" onclick="document.getElementById('csvFileInput').click()">
-                        <i class="ph ph-upload-simple"></i> Import CSV Data
+                    <button class="btn-primary btn-outline" onclick="document.getElementById('csvFileInput').click()">
+                        <i class="ph ph-upload-simple"></i> Import CSV
                     </button>
                 </div>
             </section>
@@ -63,17 +64,17 @@
 
             <div id="analysisSection" style="display: none;">
                 <div id="historyContainer" class="card" style="display:none;">
-                    <h3 class="orange-text"><i class="ph ph-clock-counter-clockwise"></i> Existing Variants History</h3>
+                    <h3 class="section-title"><i class="ph ph-clock-counter-clockwise"></i> Existing Variants History</h3>
                     <div class="table-container" id="historyTableWrapper"></div>
                 </div>
 
                 <section class="card">
-                    <h3 class="orange-text"><i class="ph ph-table"></i> E2 & E4 Recommendation Grid</h3>
+                    <h3 class="section-title"><i class="ph ph-table"></i> E2 & E4 Recommendation Grid</h3>
                     <div id="matrixContainer" class="table-container"></div>
                 </section>
 
                 <section class="card" id="mixArea" style="display: none;">
-                    <h3 class="orange-text"><i class="ph ph-shuffle"></i> 3. Element Mixing</h3>
+                    <h3 class="section-title"><i class="ph ph-shuffle"></i> 3. Element Mixing</h3>
                     <div id="tabHeaders" class="tab-container"></div>
                     <div id="tabContents" class="tab-content-area"></div>
                 </section>
@@ -85,12 +86,12 @@
                 <h2>Selected Strategies Review</h2>
             </header>
             <section class="card">
-                <h3 class="orange-text"><i class="ph ph-list-checks"></i> Final Selected Full Codes</h3>
+                <h3 class="section-title"><i class="ph ph-list-checks"></i> Final Selected Full Codes</h3>
                 <div id="reviewTabHeaders" class="tab-container"></div>
                 <div id="reviewTabContents" class="tab-content-area"></div>
                 <div id="no-selection-msg" class="empty-state">
-                    <i class="ph ph-empty"></i>
-                    <p>No codes selected yet.</p>
+                    <i class="ph ph-ghost"></i>
+                    <p>No codes selected yet. Start by checking the matrix.</p>
                 </div>
             </section>
         </div>

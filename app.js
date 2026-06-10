@@ -72,7 +72,7 @@ window.CUSTOM_IMAGES = []; // Mảng chứa base64 ảnh tự up
 let GLOBAL_CACHE_KEY = ""; 
 
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
-const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
+const API_BASE_URL = '[https://only-breanne-dzt-b25e098f.koyeb.app](https://only-breanne-dzt-b25e098f.koyeb.app)'; 
 
 function saveStateToCache() {
     if (!GLOBAL_CACHE_KEY) return;
@@ -602,7 +602,6 @@ window.handleUploadImages = async function(e) {
     }
     saveStateToCache();
     window.renderCustomImagesPreview();
-    // Re-render Review view để update các thanh toolbar nếu đang mở
     window.renderReviewView();
 };
 
@@ -895,6 +894,7 @@ window.togglePromptForm = function(fullCode) {
     }
 }
 
+// KHÔI PHỤC ĐẦY ĐỦ HÀM GỌI KỊCH BẢN (SCRIPT GENERATION) CHUẨN TIMESTAMP
 window.generateAIScript = async function(fullCode, btn) {
     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
     const productBase = pbElement ? pbElement.innerText : (GLOBAL_PRODUCT_BASE || "Personalized Custom Gift");
@@ -977,6 +977,7 @@ window.generateAIScript = async function(fullCode, btn) {
     }
 }
 
+// KHÔI PHỤC HÀM TẠO PROMPT QUAY VIDEO (ÉP TIẾNG ANH 100%)
 window.generateShootingPrompt = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.rawScript) return alert("Please generate Content first!");
@@ -1114,15 +1115,21 @@ window.cancelPromptEdit = function(code) {
     }
 };
 
+// =====================================================================
+// LUỒNG: GỌI API BYTEPLUS (SEEDANCE) TRONG NỀN MƯỢT MÀ
+// =====================================================================
+
 window.generateVideo = async function(fullCode) {
     const cacheData = AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
+    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     AI_CACHE.set(fullCode, cacheData);
     saveStateToCache();
 
+    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerText = "⏳ Requesting...";
@@ -1150,6 +1157,7 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
+        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1157,6 +1165,7 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             AI_CACHE.set(fullCode, cData);
             
+            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerText = `⏳ Generating (${cData.videoGenTime}s)...`;
@@ -1171,6 +1180,7 @@ window.generateVideo = async function(fullCode) {
                     cData.videoGenStatus = 'succeeded';
                     AI_CACHE.set(fullCode, cData);
                     
+                    // Cập nhật Token UI
                     if (statusData.usage && statusData.usage > 0) {
                         window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
                         localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
@@ -1230,7 +1240,7 @@ window.generateVideo = async function(fullCode) {
                 console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { 
+            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 AI_CACHE.set(fullCode, cData);

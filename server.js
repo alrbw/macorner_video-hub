@@ -128,12 +128,28 @@ app.post('/api/gallery', (req, res) => {
             videoUrl: req.body.videoUrl || "",
             imageUrl: req.body.imageUrl || "",
             prompt: req.body.prompt || req.body.script || "",
+            isFavorite: false, // Bổ sung mặc định false cho ảnh mới
             date: new Date().toISOString()
         };
         gallery.unshift(newItem);
         writeJsonFile(GALLERY_FILE, gallery);
         res.json({ success: true, item: newItem });
     } catch(e) { res.status(500).json({ error: "Lỗi POST Gallery: " + e.message }); }
+});
+
+// Thêm API Favorite cho Gallery
+app.patch('/api/gallery/:id/favorite', (req, res) => {
+    try {
+        let gallery = readJsonFile(GALLERY_FILE);
+        const index = gallery.findIndex(s => s.id === req.params.id);
+        let currentFav = false;
+        if (index !== -1) {
+            gallery[index].isFavorite = !gallery[index].isFavorite;
+            currentFav = gallery[index].isFavorite;
+            writeJsonFile(GALLERY_FILE, gallery);
+        }
+        res.json({ success: true, isFavorite: currentFav });
+    } catch(e) { res.status(500).json({ error: "Lỗi PATCH Gallery: " + e.message }); }
 });
 
 app.delete('/api/gallery/:id', (req, res) => {
@@ -264,6 +280,9 @@ app.post('/api/analyze-link', async (req, res) => {
     }
 });
 
+// =====================================================================
+// KHÔI PHỤC HOÀN TOÀN CẤU TRÚC PROMPT AI TẠO SCRIPT GỐC ĐÃ HOẠT ĐỘNG
+// =====================================================================
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
@@ -326,9 +345,6 @@ app.post('/api/generate-script', async (req, res) => {
         let systemRole = "";
         let textPrompt = "";
 
-        // ==========================================
-        // CẤU TRÚC GỐC ĐÃ HOẠT ĐỘNG TỐT: LUỒNG 1 SELF-GIFT 
-        // ==========================================
         if (isSelfGift) {
             systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
             
@@ -379,9 +395,6 @@ ${elementsContext}
 - Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
 `;
         } 
-        // ==========================================
-        // CẤU TRÚC GỐC ĐÃ HOẠT ĐỘNG TỐT: LUỒNG 2 QUÀ TẶNG BÌNH THƯỜNG
-        // ==========================================
         else {
             systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
             
@@ -504,7 +517,6 @@ ${script}`;
         });
 
         let result = completion.choices[0].message.content.trim();
-        // Dọn sạch rác markdown nếu AI cố chấp chèn vào
         result = result.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
 
         res.json({ prompt: result });
@@ -514,7 +526,7 @@ ${script}`;
 });
 
 // =====================================================================
-// KẾT NỐI BYTEPLUS API (SEEDANCE) 9:16 / 720p / 11-15s / Đa ảnh @image
+// KẾT NỐI BYTEPLUS API (SEEDANCE) 9:16 / 720p / 15s CỐ ĐỊNH / Đa ảnh @image
 // =====================================================================
 
 app.post('/api/generate-video', async (req, res) => {
@@ -522,30 +534,25 @@ app.post('/api/generate-video', async (req, res) => {
         const { prompt, imageUrl, customImages } = req.body;
         if (!prompt) return res.status(400).json({ error: "Missing prompt data" });
 
-        // Ép AI xuất video trong khoảng 11-15s thông qua lệnh prompt bổ sung
-        const finalPrompt = prompt + "\n\n(IMPORTANT INSTRUCTION FOR AI: Ensure the generated video duration is exactly between 11 to 15 seconds.)";
+        const finalPrompt = prompt + "\n\n(IMPORTANT INSTRUCTION FOR AI: Ensure the generated video duration is exactly 15 seconds.)";
 
         const content = [{ type: "text", text: finalPrompt }];
         
-        // Ưu tiên Custom Images nếu có up. Seedance tự động hiểu thứ tự mảng này là @image1, @image2...
         if (customImages && customImages.length > 0) {
             customImages.forEach((imgBase64) => {
                 content.push({ type: "image_url", image_url: { url: imgBase64 }, role: "reference_image" });
             });
-        } 
-        // Nếu không có, dùng ảnh từ Web gốc
-        else if (imageUrl) {
+        } else if (imageUrl) {
             content.push({ type: "image_url", image_url: { url: imageUrl }, role: "reference_image" });
         }
 
-        // Bỏ duration để kích hoạt Smart length, ép cứng 9:16 và 720p
         const payload = {
             model: "dreamina-seedance-2-0-260128",
             content: content,
             generate_audio: true,
             ratio: "9:16", 
             resolution: "720p",
-            duration: 15,
+            duration: 15, // ÉP CỨNG ĐỘ DÀI 15 GIÂY THAY VÌ ĐỂ SMART LENGTH
             watermark: false
         };
 
@@ -561,14 +568,11 @@ app.post('/api/generate-video', async (req, res) => {
         } else {
             throw new Error("Failed to create BytePlus task.");
         }
-} catch (error) {
+    } catch (error) {
         let errMsg = error.response?.data?.error?.message || error.message;
-        
-        // Vietsub lỗi chặn người thật của BytePlus
         if (errMsg.toLowerCase().includes("real person")) {
-            errMsg = "API Seedance từ chối tạo video vì phát hiện ảnh mẫu có 'người thật' (Chính sách chống Deepfake). Vui lòng dùng nút '+ Add Reference' để tải lên ảnh sản phẩm không có người và thử lại!";
+            errMsg = "API Seedance từ chối tạo video vì phát hiện ảnh mẫu có 'người thật' (Chính sách chống Deepfake). Vui lòng dùng nút '+ Add Reference' để tải lên ảnh sản phẩm trải phẳng (không có người) và thử lại!";
         }
-        
         res.status(500).json({ error: errMsg });
     }
 });

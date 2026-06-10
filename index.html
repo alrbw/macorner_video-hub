@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Macorner Video Hub | Strategy Builder</title>
+    <title>Macorner Hub | Strategy Builder</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
@@ -16,10 +16,9 @@
 <body>
     <aside class="sidebar">
         <div class="logo">
-            <div class="brand-emphasis">MACORNER</div>
-            <div class="brand-sub">VIDEO HUB</div>
+            <span class="brand-emphasis">MACORNER</span>
+            <span class="brand-sub">HUB</span>
         </div>
-        
         <nav>
             <div class="nav-item active" id="nav-builder" onclick="switchView('builder')">
                 <i class="ph ph-magic-wand"></i> Strategy Builder
@@ -40,41 +39,43 @@
         <div id="view-builder" class="view-pane active">
             <header class="top-nav">
                 <h2>Strategy Analysis & Mix</h2>
-                <div id="fileStatus" class="status-tag">Ready</div>
+                <div id="fileStatus" class="status-tag"><i class="ph ph-check-circle"></i> Ready</div>
             </header>
 
-            <section class="card">
-                <div class="card-header">
-                    <h3>1. Data Initialization</h3>
-                    <input type="file" id="csvFileInput" accept=".csv" hidden="">
-                    <button class="btn-primary btn-outline" onclick="document.getElementById('csvFileInput').click()">
-                        <i class="ph ph-upload-simple"></i> Import CSV
-                    </button>
-                </div>
-            </section>
+            <div class="card-grid-top">
+                <section class="card">
+                    <div class="card-header">
+                        <h3><i class="ph ph-database"></i> 1. Data Initialization</h3>
+                        <input type="file" id="csvFileInput" accept=".csv" hidden="">
+                        <button class="btn-outline" onclick="document.getElementById('csvFileInput').click()">
+                            <i class="ph ph-upload-simple"></i> Import CSV
+                        </button>
+                    </div>
+                </section>
 
-            <section class="card">
-                <h3>2. Search & Analyze</h3>
-                <div class="search-bar">
-                    <i class="ph ph-magnifying-glass search-icon"></i>
-                    <input type="text" id="targetVideoCode" placeholder="Enter Video Code (e.g., DOG0104...)">
-                    <button id="btnAnalyze" class="btn-primary">Start Analysis</button>
-                </div>
-            </section>
+                <section class="card">
+                    <h3><i class="ph ph-magnifying-glass"></i> 2. Search & Analyze</h3>
+                    <div class="search-bar">
+                        <i class="ph ph-link search-icon"></i>
+                        <input type="text" id="targetVideoCode" placeholder="Paste Product Link Or Code (e.g., DOG0104...)">
+                        <button id="btnAnalyze" class="btn-primary">Analyze</button>
+                    </div>
+                </section>
+            </div>
 
             <div id="analysisSection" style="display: none;">
                 <div id="historyContainer" class="card" style="display:none;">
-                    <h3 class="section-title"><i class="ph ph-clock-counter-clockwise"></i> Existing Variants History</h3>
+                    <h3 class="accent-text"><i class="ph ph-clock-counter-clockwise"></i> Existing Variants History</h3>
                     <div class="table-container" id="historyTableWrapper"></div>
                 </div>
 
                 <section class="card">
-                    <h3 class="section-title"><i class="ph ph-table"></i> E2 & E4 Recommendation Grid</h3>
+                    <h3 class="accent-text"><i class="ph ph-table"></i> E2 & E4 Recommendation Grid</h3>
                     <div id="matrixContainer" class="table-container"></div>
                 </section>
 
                 <section class="card" id="mixArea" style="display: none;">
-                    <h3 class="section-title"><i class="ph ph-shuffle"></i> 3. Element Mixing</h3>
+                    <h3 class="accent-text"><i class="ph ph-shuffle"></i> 3. Element Mixing</h3>
                     <div id="tabHeaders" class="tab-container"></div>
                     <div id="tabContents" class="tab-content-area"></div>
                 </section>
@@ -85,13 +86,13 @@
             <header class="top-nav">
                 <h2>Selected Strategies Review</h2>
             </header>
-            <section class="card">
-                <h3 class="section-title"><i class="ph ph-list-checks"></i> Final Selected Full Codes</h3>
+            <section class="card borderless-card">
+                <h3 class="accent-text"><i class="ph ph-list-checks"></i> Final Selected Full Codes</h3>
                 <div id="reviewTabHeaders" class="tab-container"></div>
                 <div id="reviewTabContents" class="tab-content-area"></div>
                 <div id="no-selection-msg" class="empty-state">
-                    <i class="ph ph-ghost"></i>
-                    <p>No codes selected yet. Start by checking the matrix.</p>
+                    <i class="ph ph-empty"></i>
+                    <p>No strategies selected yet. Go back to Builder to select codes.</p>
                 </div>
             </section>
         </div>
@@ -106,7 +107,7 @@
     <div id="tooltip" class="tooltip"></div>
     <div id="fullcode-tooltip" class="tooltip fullcode-preview"></div>
 
-    <div id="script-modal" class="modal-overlay">
+    <div id="script-modal" class="modal-overlay" style="display:none;">
         <div class="modal-content">
             <button onclick="document.getElementById('script-modal').style.display='none'" class="modal-close-btn">
                 <i class="ph ph-x"></i>

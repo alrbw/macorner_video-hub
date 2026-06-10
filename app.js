@@ -625,6 +625,33 @@ window.renderCustomImagesPreview = function() {
     }
 };
 
+// HÀM TÍNH TOẠ ĐỘ CON TRỎ ĐỂ ĐẶT MENU @IMAGE
+window.getCaretCoordinates = function(element, position) {
+    const div = document.createElement('div');
+    const style = window.getComputedStyle(element);
+    for (let prop of style) { div.style[prop] = style.getPropertyValue(prop); }
+    div.style.position = 'absolute';
+    div.style.visibility = 'hidden';
+    div.style.whiteSpace = 'pre-wrap';
+    div.style.wordWrap = 'break-word';
+    div.style.overflow = 'hidden';
+    div.style.width = element.offsetWidth + 'px';
+    div.style.height = element.offsetHeight + 'px';
+    
+    div.textContent = element.value.substring(0, position);
+    const span = document.createElement('span');
+    span.textContent = element.value.substring(position) || '.';
+    div.appendChild(span);
+    document.body.appendChild(div);
+    
+    const coords = {
+        top: span.offsetTop + parseInt(style.borderTopWidth || 0),
+        left: span.offsetLeft + parseInt(style.borderLeftWidth || 0)
+    };
+    document.body.removeChild(div);
+    return coords;
+}
+
 window.handlePromptInput = function(code, textarea) {
     const val = textarea.value;
     const cursor = textarea.selectionEnd;
@@ -652,6 +679,12 @@ window.handlePromptInput = function(code, textarea) {
         });
         
         if (hasMatch) {
+            // Tích hợp logic tọa độ mới ở đây
+            const coords = window.getCaretCoordinates(textarea, cursor);
+            suggestBox.style.bottom = 'auto'; // Gỡ ghim đáy
+            suggestBox.style.top = (coords.top - textarea.scrollTop + 30) + 'px'; // Hạ xuống 1 dòng so với con trỏ
+            suggestBox.style.left = Math.min(coords.left - textarea.scrollLeft + 15, textarea.offsetWidth - 160) + 'px'; // Tránh tràn lề phải
+            
             suggestBox.innerHTML = html;
             suggestBox.style.display = 'block';
         } else {

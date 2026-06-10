@@ -258,6 +258,13 @@ body {
     box-shadow: 0 4px 8px rgba(234, 88, 12, 0.3);
 }
 
+.btn-primary:disabled {
+    background-color: #cbd5e1;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .btn-secondary {
     background-color: var(--bg-surface);
     color: var(--text-main);
@@ -317,6 +324,7 @@ body {
 .tab-container {
     display: flex;
     gap: 8px;
+    margin-top: 20px;     /* Đã thêm khoảng cách tách biệt tiêu đề */
     margin-bottom: 24px;
     border-bottom: 1px solid var(--border-light);
     padding-bottom: 16px;
@@ -474,16 +482,16 @@ tr:hover td { background-color: #f8fafc; }
 }
 
 /* ================== OVERRIDING JS INJECTED INLINE STYLES ================== */
-/* Ghi đè các style cũ được sinh ra từ JS để đồng bộ Minimalism */
 #pb-container {
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--border-light) !important;
     box-shadow: var(--shadow-sm) !important;
     padding: 24px !important;
+    overflow: visible !important;
 }
 
 .prompt-builder-wrapper {
-    background: #fafaf9 !important; /* Đổi nền cam khè thành xám siêu nhạt */
+    background: #fafaf9 !important; 
     border: 1px solid var(--border-light) !important;
     box-shadow: none !important;
     border-radius: var(--radius-md) !important;
@@ -519,6 +527,116 @@ tr:hover td { background-color: #f8fafc; }
 .gallery-card:hover {
     box-shadow: var(--shadow-dropdown) !important;
     transform: translateY(-4px);
+}
+
+/* ================== REFERENCE GALLERY UPLOAD (HOVER COLLAPSE) ================== */
+.ref-gallery-module {
+    position: relative;
+    display: inline-block;
+}
+
+/* Trạng thái thu gọn (Stack) */
+.ref-stack-trigger {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.ref-stack-trigger:hover { transform: scale(1.05); }
+
+.ref-stack-img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    background: #f1f5f9;
+}
+
+.ref-stack-badge {
+    position: absolute;
+    bottom: -6px; right: -6px;
+    width: 22px; height: 22px;
+    background: rgba(30, 41, 59, 0.85); /* Tối như UI tham khảo */
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    z-index: 10;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Menu mở rộng (Dark Mode) */
+.ref-expanded-dropdown {
+    position: absolute;
+    top: 120%;
+    right: 0; /* Canh lề phải */
+    background: #1e293b; /* Dark Navy Slate */
+    border-radius: 12px;
+    padding: 16px;
+    width: max-content;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    display: none; 
+    z-index: 9999;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ref-gallery-module:hover .ref-expanded-dropdown {
+    display: flex;
+}
+
+/* Nút Local Upload trong Dropdown */
+.ref-expanded-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e2e8f0;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    transition: 0.2s;
+}
+.ref-expanded-add i { font-size: 18px; }
+.ref-expanded-add:hover { color: #fff; }
+
+/* Grid ảnh bên trong Menu */
+.ref-expanded-scroll {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    max-width: 280px; 
+}
+
+.ref-expanded-thumb {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #475569;
+}
+.ref-expanded-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.ref-expanded-del {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: 0.2s;
+    font-size: 20px;
+}
+.ref-expanded-thumb:hover .ref-expanded-del {
+    opacity: 1;
 }
 
 /* ================== TOOLTIPS & MODALS ================== */

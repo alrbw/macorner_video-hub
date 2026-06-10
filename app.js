@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V62 (Minimalism UI, Caret Track @image, Store & Gallery Local Cloud)
+ * FULL AUTO V63 (Clean UI, Image Collapse Stack, Remove Tokens, Tab Spacing)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -26,19 +26,6 @@ if (!document.getElementById('modern-ui-styles')) {
         .prompt-view-box::-webkit-scrollbar-track { background: transparent; }
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        /* CSS Fix Fullscreen Video 9:16 */
-        .gallery-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
-        .gallery-video::-webkit-media-controls-enclosure { object-fit: contain !important; }
-        .gallery-video:-webkit-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
-        .gallery-video:-moz-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
-        .gallery-video:fullscreen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
-        
-        /* Box Upload Image */
-        .custom-upload-area { display: flex; gap: 8px; align-items: center; }
-        .upload-thumb-wrap { position: relative; width: 44px; height: 44px; border-radius: 6px; border: 1px solid #cbd5e1; overflow: hidden; background: #f1f5f9; }
-        .upload-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
-        .upload-thumb-del { position: absolute; top: 0; right: 0; background: rgba(220,38,38,0.9); color: white; border: none; font-size: 10px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-bottom-left-radius: 4px; }
         
         .smart-dropdown-item { padding: 8px 12px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 8px; font-weight: 500;}
         .smart-dropdown-item:hover { background: #fef3c7; color: #ea580c; font-weight: bold; }
@@ -71,7 +58,6 @@ window.CUSTOM_IMAGES = [];
 
 window.GLOBAL_CACHE_KEY = ""; 
 
-window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 window.saveStateToCache = function() {
@@ -562,14 +548,7 @@ window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     window.renderReviewView();
 }
 
-window.updateTokenDisplay = function() {
-    const tokenDisplay = document.getElementById('bp-token-usage');
-    if (tokenDisplay) {
-        tokenDisplay.innerText = window.BYTEPLUS_TOTAL_TOKENS.toLocaleString();
-    }
-}
-
-// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION
+// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -602,27 +581,61 @@ window.handleUploadImages = async function(e) {
     }
     window.saveStateToCache();
     window.renderCustomImagesPreview();
-    window.renderReviewView();
 };
 
 window.removeCustomImage = function(index) {
     window.CUSTOM_IMAGES.splice(index, 1);
     window.saveStateToCache();
     window.renderCustomImagesPreview();
-    window.renderReviewView();
 };
 
 window.renderCustomImagesPreview = function() {
-    const container = document.getElementById('custom-img-preview');
-    if(container) {
-        container.innerHTML = window.CUSTOM_IMAGES.map((img, i) => `
-            <div class="upload-thumb-wrap" title="Image ${i+1}">
-                <img src="${img}">
-                <button class="upload-thumb-del" onclick="window.removeCustomImage(${i})">✕</button>
-                <div style="position:absolute; bottom:0; left:0; width:100%; background:rgba(0,0,0,0.6); color:white; font-size:9px; text-align:center; padding:2px 0;">IMG ${i+1}</div>
-            </div>
-        `).join('');
+    const container = document.getElementById('custom-upload-wrapper');
+    if(!container) return;
+
+    if (window.CUSTOM_IMAGES.length === 0) {
+        container.innerHTML = `
+            <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; color:#475569; transition: 0.2s; display:flex; align-items:center; gap:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                <i class="ph ph-plus"></i> Add Reference
+                <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
+            </label>
+        `;
+        return;
     }
+
+    let stackHtml = '';
+    const displayImgs = window.CUSTOM_IMAGES.slice(0, 3);
+    displayImgs.forEach((img, i) => {
+        let rotation = 0;
+        if (i === 0 && displayImgs.length > 1) rotation = -5;
+        if (i === 2) rotation = 5;
+        stackHtml += `<img src="${img}" class="ref-stack-img" style="z-index: ${5 - i}; transform: rotate(${rotation}deg);">`;
+    });
+
+    let expandedListHtml = window.CUSTOM_IMAGES.map((img, i) => `
+        <div class="ref-expanded-thumb">
+            <img src="${img}">
+            <button class="ref-expanded-del" onclick="window.removeCustomImage(${i})"><i class="ph ph-trash"></i></button>
+        </div>
+    `).join('');
+
+    container.innerHTML = `
+        <div class="ref-gallery-module">
+            <div class="ref-stack-trigger">
+                ${stackHtml}
+                <div class="ref-stack-badge"><i class="ph ph-plus"></i></div>
+            </div>
+            <div class="ref-expanded-dropdown">
+                <label class="ref-expanded-add">
+                    <i class="ph ph-plus"></i> local upload
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
+                </label>
+                <div class="ref-expanded-scroll">
+                    ${expandedListHtml}
+                </div>
+            </div>
+        </div>
+    `;
 };
 
 // HÀM TÍNH TOẠ ĐỘ CON TRỎ ĐỂ ĐẶT MENU @IMAGE
@@ -754,18 +767,6 @@ window.renderReviewView = function() {
         ? `<img src="${window.GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
-    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;"><i class="ph ph-coins"></i> BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
-    
-    const customUploadHtml = `
-        <div style="display:flex; align-items:center; gap:12px;">
-            <div id="custom-img-preview" style="display:flex; gap:8px;"></div>
-            <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-                <i class="ph ph-plus"></i> Add Reference
-                <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
-            </label>
-        </div>
-    `;
-
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
     pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
@@ -778,10 +779,8 @@ window.renderReviewView = function() {
             </div>
             ${linkBadgeHtml}
         </div>
-        <div style="display:flex; align-items:center;">
-            ${tokenDisplayHtml}
-            ${customUploadHtml}
-        </div>
+        <div style="display:flex; align-items:center;" id="custom-upload-wrapper">
+            </div>
     `;
     headers.parentNode.insertBefore(pbContainer, headers);
     window.renderCustomImagesPreview();
@@ -820,10 +819,10 @@ window.renderReviewView = function() {
 
             const videoStatus = cacheData.videoGenStatus || '';
             const videoTime = cacheData.videoGenTime || 0;
-            let videoBtnHtml = `<button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
+            let videoBtnHtml = `<button title="Generate final video with Seedance 2.0" onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
             
             if (videoStatus === 'generating') {
-                videoBtnHtml = `<button disabled id="video-btn-${code}" title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner"></i> Generating (${videoTime}s)...</button>`;
+                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner"></i> Generating (${videoTime}s)...</button>`;
             } else if (videoStatus === 'succeeded') {
                 videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;"><i class="ph ph-check-circle"></i> Video Ready!</button>`;
             }
@@ -844,7 +843,7 @@ window.renderReviewView = function() {
                 
                 <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
                     <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                    <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                    <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;">✖ Cancel</button>
                         <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
@@ -1062,11 +1061,11 @@ window.generateShootingPrompt = async function(fullCode) {
             
             <div id="prompt-edit-area-${fullCode}" style="display:none; position:relative;">
                 <textarea id="prompt-textarea-${fullCode}" oninput="window.handlePromptInput('${fullCode}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; bottom:15px; left:15px; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
+                <div id="suggest-box-${fullCode}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
                 
                 <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                     <button onclick="window.cancelPromptEdit('${fullCode}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">✖ Cancel</button>
-                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">💾 Save Edit</button>
+                    <button onclick="window.savePromptEdit('${fullCode}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'"><i class="ph ph-floppy-disk"></i> Save Edit</button>
                 </div>
             </div>
         `;
@@ -1148,13 +1147,11 @@ window.generateVideo = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     window.AI_CACHE.set(fullCode, cacheData);
     window.saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
@@ -1182,7 +1179,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1190,7 +1186,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             window.AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
@@ -1204,14 +1199,6 @@ window.generateVideo = async function(fullCode) {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
-                    
-                    // Cập nhật Token UI
-                    if (statusData.usage && statusData.usage > 0) {
-                        window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
-                        localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
-                        window.updateTokenDisplay();
-                    }
-
                     window.saveStateToCache();
 
                     if (currentBtn) {
@@ -1295,6 +1282,63 @@ window.generateVideo = async function(fullCode) {
             errBtn.style.cursor = "pointer";
         }
         alert(`❌ Lỗi tạo video: ${err.message}`);
+    }
+};
+
+window.saveScript = async function(fullCode) {
+    const cacheData = window.AI_CACHE.get(fullCode);
+    if (!cacheData || !cacheData.rawScript) {
+        alert("Lỗi: Không tìm thấy nội dung kịch bản để lưu (Có thể do tải lại trang). Vui lòng tạo lại Script!");
+        return;
+    }
+    
+    const productBase = window.GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
+    let finalContent = cacheData.rawScript;
+    
+    if (cacheData.shootingPrompt) {
+        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
+    }
+
+    const btn = document.getElementById(`save-btn-${fullCode}`);
+    if (btn) {
+        btn.innerHTML = "<i class='ph ph-spinner'></i> Saving...";
+        btn.disabled = true;
+    }
+
+    try {
+        const payload = {
+            code: fullCode,
+            productBase: productBase,
+            targetCode: window.GLOBAL_TARGET_CODE || fullCode.substring(0,3),
+            content: finalContent
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Máy chủ từ chối lưu dữ liệu");
+        
+        if (btn) {
+            btn.innerHTML = "<i class='ph ph-check-circle'></i> Saved!";
+            setTimeout(() => { 
+                btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
+                btn.disabled = false; 
+            }, 2000);
+        }
+        
+        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
+            window.renderStore();
+        }
+    } catch (e) {
+        console.error("Lỗi Save Store:", e);
+        alert(`Có lỗi khi lưu lên Cloud: ${e.message}`);
+        if (btn) { 
+            btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
+            btn.disabled = false; 
+        }
     }
 };
 
@@ -1550,63 +1594,6 @@ window.toggleFavorite = async function(id) {
         alert("Lỗi khi cập nhật Cloud!");
     }
 }
-
-window.saveScript = async function(fullCode) {
-    const cacheData = window.AI_CACHE.get(fullCode);
-    if (!cacheData || !cacheData.rawScript) {
-        alert("Lỗi: Không tìm thấy nội dung kịch bản để lưu (Có thể do tải lại trang). Vui lòng tạo lại Script!");
-        return;
-    }
-    
-    const productBase = window.GLOBAL_PRODUCT_BASE || "Personalized Custom Gift";
-    let finalContent = cacheData.rawScript;
-    
-    if (cacheData.shootingPrompt) {
-        finalContent += "\n\n=== 🎬 VIDEO SHOOTING PROMPT ===\n\n" + cacheData.shootingPrompt;
-    }
-
-    const btn = document.getElementById(`save-btn-${fullCode}`);
-    if (btn) {
-        btn.innerHTML = "<i class='ph ph-spinner'></i> Saving...";
-        btn.disabled = true;
-    }
-
-    try {
-        const payload = {
-            code: fullCode,
-            productBase: productBase,
-            targetCode: window.GLOBAL_TARGET_CODE || fullCode.substring(0,3),
-            content: finalContent
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/store`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error("Máy chủ từ chối lưu dữ liệu");
-        
-        if (btn) {
-            btn.innerHTML = "<i class='ph ph-check-circle'></i> Saved!";
-            setTimeout(() => { 
-                btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
-                btn.disabled = false; 
-            }, 2000);
-        }
-        
-        if (document.getElementById('view-store') && document.getElementById('view-store').classList.contains('active')) {
-            window.renderStore();
-        }
-    } catch (e) {
-        console.error("Lỗi Save Store:", e);
-        alert(`Có lỗi khi lưu lên Cloud: ${e.message}`);
-        if (btn) { 
-            btn.innerHTML = "<i class='ph ph-floppy-disk'></i> Save"; 
-            btn.disabled = false; 
-        }
-    }
-};
 
 window.deleteScript = async function(id) {
     if(!confirm("Xóa kịch bản này khỏi đám mây chung?")) return;

@@ -9,7 +9,12 @@ const { OpenAI } = require('openai');
 
 function cleanAIScript(text) {
     if (!text) return "";
-    return text
+    // Dọn dẹp thẻ markdown code (VD: ```plaintext) do AI tự sinh ra
+    let cleaned = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, ''); 
+    // Xóa chữ plaintext nếu bị rớt lại ở đầu chuỗi
+    cleaned = cleaned.replace(/^\s*plaintext\s*/i, '');
+    
+    return cleaned
         .replace(/"/g, '')
         .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
         .replace(/#\w+/g, '')
@@ -21,12 +26,12 @@ function cleanAIScript(text) {
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '100mb' })); // Tăng limit để chứa nhiều ảnh Custom Base64
+app.use(express.json({ limit: '100mb' })); 
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function getLarkToken() {
-    const res = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', {
+    const res = await axios.post('[https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal](https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal)', {
         app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET
     });
     return res.data.tenant_access_token;
@@ -261,6 +266,9 @@ app.post('/api/analyze-link', async (req, res) => {
     }
 });
 
+// =====================================================================
+// KHÔI PHỤC HOÀN TOÀN CẤU TRÚC PROMPT AI TẠO SCRIPT GỐC ĐÃ HOẠT ĐỘNG
+// =====================================================================
 app.post('/api/generate-script', async (req, res) => {
     try {
         const { fullCode, niche, productBase, scrapedData, imageUrl, spentCodes, eData } = req.body;
@@ -269,7 +277,7 @@ app.post('/api/generate-script', async (req, res) => {
         
         try {
             if (process.env.APP_ID && process.env.TABLE_ID) {
-                const tokenRes = await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal', { app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET });
+                const tokenRes = await axios.post('[https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal](https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal)', { app_id: process.env.APP_ID, app_secret: process.env.APP_SECRET });
                 const larkToken = tokenRes.data.tenant_access_token;
                 const larkUrl = `https://open.larksuite.com/open-apis/bitable/v1/apps/${process.env.BITABLE_APP_TOKEN}/tables/${process.env.TABLE_ID}/records?page_size=500`;
                 const recordsRes = await axios.get(larkUrl, { headers: { 'Authorization': `Bearer ${larkToken}` } });
@@ -323,46 +331,81 @@ app.post('/api/generate-script', async (req, res) => {
         let systemRole = "";
         let textPrompt = "";
 
+        // ==========================================
+        // CẤU TRÚC GỐC ĐÃ HOẠT ĐỘNG TỐT: LUỒNG 1 SELF-GIFT 
+        // ==========================================
         if (isSelfGift) {
-            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else. YOUR OUTPUT MUST BE 100% IN ENGLISH. NO VIETNAMESE ALLOWED.";
+            systemRole = "You are an expert UGC video scriptwriter. STRICT RULE: This is a SELF-PURCHASE scenario. The speaker bought the item for THEMSELVES. You will be severely penalized if you mention gifting to someone else.";
+            
             textPrompt = `
+You are an expert short-form video scriptwriter (TikTok/Reels/Shorts).
+
 TARGET DURATION: 11 to 15 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 
 === WARNING: CRITICAL CONTEXT ===
 The product details below might contain keywords like "gifts for dad", "perfect for grandpa", "for mom", etc. YOU MUST ABSOLUTELY IGNORE THOSE KEYWORDS. 
-The scenario is STRICTLY SELF-PURCHASE. The speaker bought this item purely as a treat for THEMSELVES. 
+The scenario is STRICTLY SELF-PURCHASE. The speaker in the video bought this item purely as a treat or reward for THEMSELVES. 
 
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
-=== CRITICAL INSTRUCTIONS ===
-1. POV: SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, WIFE, OR ANYONE ELSE.
-2. TONE: ${toneInstruction}
-3. LANGUAGE: STRICTLY ENGLISH. DO NOT USE ANY VIETNAMESE WORDS.
+=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
+1. POINT OF VIEW (POV): SELF-PURCHASER (First-person). Use "I", "my", "me". Talk about why YOU bought it for YOURSELF, how it benefits YOU, or why YOU deserved a treat. CRITICAL FATAL ERROR IF YOU MENTION BUYING IT FOR DAD, MOM, GRANDPA, WIFE, OR ANYONE ELSE.
+2. TONE OF VOICE: ${toneInstruction} -> Keep this 100% consistent.
+3. LANGUAGE: STRICTLY ENGLISH. Do not output Vietnamese.
 
-=== SCRIPT STRUCTURE ===
-1. HOOK (0:00-0:03): "${e1Name}" - Frame it around treating oneself.
-2. BODY: "${e2Name}" - Showcase the product following this exact storyline. Focus purely on personal reaction.
-3. CTA: "${e5Name}" - Encourage the viewer to treat themselves.
-ADDITIONAL CONTEXT:\n${elementsContext}
+=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
+You must structure the script based on the following requested elements. Execute them EXACTLY as described, but ADAPT THEM TO THE SELF-PURCHASE CONTEXT:
 
-OUTPUT STRICTLY IN ENGLISH. NO VIETNAMESE ALLOWED.
+1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
+   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
+   -> Rule: Execute this specific type of hook perfectly in the first sentence. Frame it around a personal realization, self-care, or treating oneself. NO GIFTING OTHERS.
+
+2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
+   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
+   -> Rule: Showcase the product following this exact storyline angle. Focus purely on why YOU bought it for YOURSELF and your personal reaction/use.
+
+3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
+   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
+   -> Rule: End the script following this exact CTA intent. Encourage the viewer to treat themselves, upgrade their own life, or buy it for their own joy.
+
+ADDITIONAL CONTEXT FOR ELEMENTS:
+${elementsContext}
+
+=== IMAGE GUIDELINES (if an image is provided) ===
+- Describe only general visual attributes: colors, materials, textures, shapes, layout.
+- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
+
 === OUTPUT FORMAT ===
-[0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
-        } else {
-            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller). STRICT REQUIREMENT: YOUR ENTIRE OUTPUT MUST BE IN ENGLISH. NO VIETNAMESE ALLOWED.";
+- Divide the script into short scenes with timestamps.
+- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
+- Use this format: Your sentence here.
+- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
+`;
+        } 
+        // ==========================================
+        // CẤU TRÚC GỐC ĐÃ HOẠT ĐỘNG TỐT: LUỒNG 2 QUÀ TẶNG BÌNH THƯỜNG
+        // ==========================================
+        else {
+            systemRole = "You are an expert UGC and marketing scriptwriter who adapts perfectly to any given persona (Buyer, Receiver, or Seller).";
             
             let match = insightName.match(/to\s+(.*?)\s+from\s+(.*)/i);
             if (match) { receiver = match[1].trim(); buyer = match[2].trim(); }
             else { let fMatch = insightName.match(/for\s+(.*)/i); if (fMatch) { receiver = fMatch[1].trim(); buyer = `Anyone buying for ${receiver}`; } }
 
             let e2Check = String(e2Group + " " + e2Name).toLowerCase();
-            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer. Use 'we', 'our'.";
-            if (e2Check.includes("buyer")) povInstruction = `BUYER POV (First-person): You bought this as a gift for ${receiver}. Use 'I', 'my'.`;
-            else if (e2Check.includes("receiver")) povInstruction = `RECEIVER POV (First-person): You received this gift from ${buyer}. Use 'I', 'my'.`;
+            let povInstruction = "STORE OWNER / BRAND POV: Speak directly to the viewer as a proud seller/creator of the product. Use 'we', 'our', or 'I' (as the maker). DO NOT sound like a buyer.";
+            
+            if (e2Check.includes("buyer")) {
+                povInstruction = `BUYER POV (First-person): You are a regular customer who bought this item as a gift for ${receiver}. Use 'I', 'my'. Talk about your personal experience, why you bought it, and your excitement. NEVER sound like a seller or brand.`;
+            } else if (e2Check.includes("receiver")) {
+                povInstruction = `RECEIVER POV (First-person): You are the person who received this gift from ${buyer}. Use 'I', 'my'. Share your emotional reaction, appreciation, and how much you love it. NEVER sound like a seller or brand.`;
+            }
 
             textPrompt = `
+You are an expert short-form video scriptwriter (TikTok/Reels/Shorts) specializing in e-commerce gift products.
+
 TARGET DURATION: 11 to 15 seconds.
 PRODUCT NAME: "${productBase || 'N/A'}"
 GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
@@ -370,20 +413,39 @@ GIFTING CONTEXT: The buyer is ${buyer}. The recipient is ${receiver}.
 ${scrapedData ? `PRODUCT DETAILS:\n${scrapedData}\n` : ''}
 ${referenceText ? `ADDITIONAL NOTES / REFERENCES:\n${referenceText}\n` : ''}
 
-=== CRITICAL INSTRUCTIONS ===
-1. POV: ${povInstruction}
-2. TONE: ${toneInstruction}
-3. LANGUAGE: STRICTLY ENGLISH. DO NOT USE ANY VIETNAMESE WORDS.
+=== CRITICAL INSTRUCTIONS: POINT OF VIEW (POV) & TONE ===
+1. POINT OF VIEW (POV): ${povInstruction}
+2. TONE OF VOICE: ${toneInstruction} -> IMPORTANT: The tone must be 100% consistent from the very first word of the hook to the final call-to-action.
+3. LANGUAGE: STRICTLY ENGLISH. Do not output Vietnamese.
 
-=== SCRIPT STRUCTURE ===
-1. HOOK (0:00-0:03): "${e1Name}"
-2. BODY: "${e2Name}" 
-3. CTA: "${e5Name}"
-ADDITIONAL CONTEXT:\n${elementsContext}
+=== SCRIPT STRUCTURE & EXACT ELEMENT EXECUTIONS ===
+You must structure the script based on the following requested elements. Execute them EXACTLY as described:
 
-OUTPUT STRICTLY IN ENGLISH. NO VIETNAMESE ALLOWED.
+1. HOOK (0:00-0:03): "${e1Name || 'Start with an attention-grabber.'}"
+   ${e1Exp ? `-> Concept & Definition: ${e1Exp}` : ''}
+   -> Rule: Execute this specific type of hook perfectly in the first sentence.
+
+2. BODY/STORYLINE: "${e2Name || 'Highlight the product.'}"
+   ${e2Exp ? `-> Concept & Definition: ${e2Exp}` : ''}
+   -> Rule: Showcase the product following this exact storyline angle and POV.
+
+3. CALL TO ACTION (CTA): "${e5Name || 'Provide a natural conclusion.'}"
+   ${e5Exp ? `-> Concept & Definition: ${e5Exp}` : ''}
+   -> Rule: End the script following this exact CTA intent. Ensure the CTA fits your assigned POV.
+
+ADDITIONAL CONTEXT FOR ELEMENTS:
+${elementsContext}
+
+=== IMAGE GUIDELINES (if an image is provided) ===
+- Describe only general visual attributes: colors, materials, textures, shapes, layout.
+- Treat any people shown as generic, non-identifiable figures. Focus entirely on the product.
+
 === OUTPUT FORMAT ===
-[0:00-0:03] Your sentence here. (Only spoken script, 1 sentence per timestamp)`;
+- Divide the script into short scenes with timestamps.
+- Each timestamp block must contain EXACTLY ONE spoken sentence (maximum 15 words).
+- Use this format: Your sentence here.
+- Output ONLY the spoken script. No intro, no outro, no extra commentary, no visual/camera directions. Write in English.
+`;
         }
 
         let messagesContent = [{ type: "text", text: textPrompt }];
@@ -423,13 +485,13 @@ OUTPUT STRICTLY IN ENGLISH. NO VIETNAMESE ALLOWED.
     }
 });
 
-// ÉP 100% TIẾNG ANH VÀO PROMPT QUAY VIDEO
+// ÉP 100% TIẾNG ANH VÀO PROMPT QUAY VIDEO VÀ XÓA MARKDOWN
 app.post('/api/generate-ugc-prompt', async (req, res) => {
     try {
         const { script, recipientDesc } = req.body;
         if (!script || !recipientDesc) return res.status(400).json({ error: "Missing required fields" });
 
-        const systemRole = "You are an expert UGC video director. CRITICAL INSTRUCTION: YOUR ENTIRE OUTPUT MUST BE STRICTLY WRITTEN IN ENGLISH. ABSOLUTELY NO VIETNAMESE WORDS ARE ALLOWED.";
+        const systemRole = "You are an expert UGC video director. CRITICAL INSTRUCTION: YOUR ENTIRE OUTPUT MUST BE STRICTLY WRITTEN IN ENGLISH. ABSOLUTELY NO VIETNAMESE WORDS ARE ALLOWED. DO NOT USE MARKDOWN BLOCK FORMATTING.";
         const textPrompt = `Convert the raw content below into a complete video shooting prompt strictly in ENGLISH following these rules:
 
 1. Character & Setting: Write 1 English sentence describing the character (age, ethnicity, attitude) based on: "${recipientDesc}". 
@@ -446,7 +508,11 @@ ${script}`;
             max_tokens: 1200
         });
 
-        res.json({ prompt: completion.choices[0].message.content.trim() });
+        let result = completion.choices[0].message.content.trim();
+        // Dọn sạch rác markdown nếu AI cố chấp chèn vào
+        result = result.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+
+        res.json({ prompt: result });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -487,7 +553,7 @@ app.post('/api/generate-video', async (req, res) => {
             watermark: false
         };
 
-        const response = await axios.post('https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks', payload, {
+        const response = await axios.post('[https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks](https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks)', payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${process.env.BYTEPLUS_API_KEY}`

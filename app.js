@@ -777,7 +777,6 @@ window.renderReviewView = function() {
     const contents = document.getElementById('reviewTabContents');
     const msg = document.getElementById('no-selection-msg');
 
-    // Lưu lại trạng thái Tab đang mở trước khi xoá (FIX TAB JUMPING)
     const currentActiveBtn = document.querySelector('#reviewTabHeaders .tab-btn.active');
     const activeTabKey = currentActiveBtn ? currentActiveBtn.dataset.key : null;
 
@@ -808,6 +807,9 @@ window.renderReviewView = function() {
         ? `<img src="${window.GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
+    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;"><i class="ph ph-coins"></i> BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
+    
+    // Đã gỡ bỏ vùng Upload Ảnh khỏi thanh ngang Tổng
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
     pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
@@ -820,11 +822,11 @@ window.renderReviewView = function() {
             </div>
             ${linkBadgeHtml}
         </div>
-        <div style="display:flex; align-items:center;" id="custom-upload-wrapper">
-            </div>
+        <div style="display:flex; align-items:center;">
+            ${tokenDisplayHtml}
+        </div>
     `;
     headers.parentNode.insertBefore(pbContainer, headers);
-    window.renderCustomImagesPreview();
 
     const grouped = {};
     window.FINAL_SELECTED_CODES.forEach(item => {
@@ -833,13 +835,7 @@ window.renderReviewView = function() {
     });
 
     Object.keys(grouped).forEach((pairKey, idx) => {
-        // Gán trạng thái active nếu là tab đang mở, nếu ko có thì mặc định chọn tab đầu tiên
-        let isActive = false;
-        if (activeTabKey) {
-            isActive = (pairKey === activeTabKey);
-        } else {
-            isActive = (idx === 0);
-        }
+        let isActive = activeTabKey ? (pairKey === activeTabKey) : (idx === 0);
 
         headers.innerHTML += `<button class="tab-btn ${isActive ? 'active' : ''}" data-key="${pairKey}" onclick="window.switchTab('${pairKey}', 'reviewTabHeaders', 'reviewTabContents')">Pair ${pairKey}</button>`;
         const pane = document.createElement('div');
@@ -878,7 +874,8 @@ window.renderReviewView = function() {
 
             const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${code}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
             
-            const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
+            const localCustomImages = cacheData.customImages || [];
+            const insertTagsHtml = localCustomImages.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
             const ugcPromptResultContent = ugcPromptResult ? `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${code}">
@@ -902,9 +899,13 @@ window.renderReviewView = function() {
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
             ` : '';
 
+            // Đặt Nút Tải Ảnh Ngay Bên Cạnh Tiêu Đề Của Mỗi Code Riêng Biệt
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
-                    <h4 style="margin:0 0 12px 0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;"><i class="ph ph-film-strip"></i> Generate Video Shooting Prompt</h4>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h4 style="margin:0; color:#ea580c; font-size:15px; display:flex; align-items:center; gap:8px;"><i class="ph ph-film-strip"></i> Generate Video Shooting Prompt</h4>
+                        <div id="custom-upload-wrapper-${code}"></div>
+                    </div>
                     <div style="display:flex; gap:12px; margin-bottom:15px; align-items:stretch;">
                         <input type="text" id="prompt-recipient-${code}" value="${ugcRecipientVal}" placeholder="Mô tả đối tượng (VD: a woman in her mid 50s)..." style="flex:1; padding:10px 14px; border:1px solid #fdba74; border-radius:6px; font-size:14px; outline:none; box-sizing:border-box; transition:box-shadow 0.2s;" onfocus="this.style.boxShadow='0 0 0 3px rgba(251,146,60,0.2)'" onblur="this.style.boxShadow='none'" onkeypress="if(event.key === 'Enter') { event.preventDefault(); window.generateShootingPrompt('${code}'); }" autocomplete="off">
                         <button id="btn-gen-prompt-${code}" onclick="window.generateShootingPrompt('${code}')" style="background:#ea580c; color:white; border:none; padding:0 24px; border-radius:6px; font-weight:600; cursor:pointer; font-size:14px; transition:all 0.2s; box-shadow:0 2px 4px rgba(234,88,12,0.2);"><i class="ph ph-sparkle"></i> Generate</button>
@@ -932,6 +933,11 @@ window.renderReviewView = function() {
         });
         pane.innerHTML = tableHtml + `</tbody></table>`;
         contents.appendChild(pane);
+    });
+
+    // Sau khi render xong bảng, kích hoạt hàm vẽ Stack Ảnh cho từng Code
+    window.FINAL_SELECTED_CODES.forEach(item => {
+        window.renderCustomImagesPreview(item.fullCode);
     });
 }
 
@@ -1011,7 +1017,7 @@ window.generateAIScript = async function(fullCode, btn) {
                 fullCode, niche: window.CURRENT_NICHE, productBase,
                 scrapedData: window.GLOBAL_SCRAPED_DATA,
                 imageUrl: window.GLOBAL_IMAGE_URL,
-                customImages: window.CUSTOM_IMAGES,
+                customImages: [], // Script gốc luôn sinh ra từ ảnh Web (Hoặc Prompt không cần ảnh)
                 spentCodes, eData
             })
         });
@@ -1094,7 +1100,8 @@ window.generateShootingPrompt = async function(fullCode) {
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
         
-        const insertTagsHtml = window.CUSTOM_IMAGES.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
+        const localCustomImages = cacheData.customImages || [];
+        const insertTagsHtml = localCustomImages.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
 
         resultBox.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" id="prompt-actions-wrapper-${fullCode}">
@@ -1102,7 +1109,7 @@ window.generateShootingPrompt = async function(fullCode) {
                 <div style="display:flex; gap:8px; margin-left:auto;">
                     <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;"><i class="ph ph-note-pencil"></i> Edit</button>
                     <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;"><i class="ph ph-copy"></i> Copy Prompt</button>
-                    <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;"><i class="ph ph-video-camera"></i> Generate Video</button>
+                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;"><i class="ph ph-video-camera"></i> Generate Video</button>
                 </div>
             </div>
             
@@ -1126,6 +1133,9 @@ window.generateShootingPrompt = async function(fullCode) {
         
         window.AI_CACHE.set(fullCode, cacheData);
         window.saveStateToCache();
+        
+        // Vẽ lại cục Stack ảnh
+        window.renderCustomImagesPreview(fullCode);
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
     } finally {
@@ -1215,13 +1225,11 @@ window.generateVideo = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
-    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     window.AI_CACHE.set(fullCode, cacheData);
     window.saveStateToCache();
 
-    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
@@ -1231,10 +1239,11 @@ window.generateVideo = async function(fullCode) {
     }
 
     try {
+        const localCustomImages = cacheData.customImages || [];
         const payloadParams = {
             prompt: cacheData.shootingPrompt,
             imageUrl: window.GLOBAL_IMAGE_URL,
-            customImages: window.CUSTOM_IMAGES 
+            customImages: localCustomImages 
         };
 
         const res = await fetch(`${API_BASE_URL}/api/generate-video`, {
@@ -1249,7 +1258,6 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
-        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1257,7 +1265,6 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             window.AI_CACHE.set(fullCode, cData);
             
-            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
@@ -1271,6 +1278,13 @@ window.generateVideo = async function(fullCode) {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
+                    
+                    if (statusData.usage && statusData.usage > 0) {
+                        window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
+                        localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
+                        window.updateTokenDisplay();
+                    }
+
                     window.saveStateToCache();
 
                     if (currentBtn) {
@@ -1284,7 +1298,7 @@ window.generateVideo = async function(fullCode) {
                     const pbElement = document.querySelector('#pb-container span[style*="color: #bf360c"]');
                     const productBase = pbElement ? pbElement.innerText : (window.GLOBAL_PRODUCT_BASE || "Product");
 
-                    const coverImage = (window.CUSTOM_IMAGES && window.CUSTOM_IMAGES.length > 0) ? window.CUSTOM_IMAGES[0] : window.GLOBAL_IMAGE_URL;
+                    const coverImage = (localCustomImages && localCustomImages.length > 0) ? localCustomImages[0] : window.GLOBAL_IMAGE_URL;
 
                     try {
                         await fetch(`${API_BASE_URL}/api/gallery`, {
@@ -1299,7 +1313,6 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
-                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1321,10 +1334,9 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
-                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
+            if (cData.videoGenTime >= 600) { 
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 window.AI_CACHE.set(fullCode, cData);

@@ -1571,53 +1571,65 @@ window.updateStoreUI = function() {
 
     if(!listDiv) return;
 
-    let filtered = window.STORE_DATA_CACHE.filter(s => {
-        if (window.currentStoreFilter !== 'all' && s.targetCode !== window.currentStoreFilter) return false;
-        if (isFavOnly && !s.isFavorite) return false;
+    // Bước 1: Lọc theo ô Search và thẻ Favorite
+    let preFiltered = window.STORE_DATA_CACHE.filter(item => {
+        if (isFavOnly && !item.isFavorite) return false;
+        if (!searchVal) return true;
         
-        return s.code.toLowerCase().includes(searchVal) || 
-               (s.productBase && s.productBase.toLowerCase().includes(searchVal)) ||
-               (s.targetCode && s.targetCode.toLowerCase().includes(searchVal));
+        return item.code.toLowerCase().includes(searchVal) || 
+               (item.productBase && item.productBase.toLowerCase().includes(searchVal)) ||
+               (item.targetCode && item.targetCode.toLowerCase().includes(searchVal));
     });
 
-    if (sortVal === 'oldest') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
-    else if (sortVal === 'code') filtered.sort((a,b) => a.code.localeCompare(b.code));
-    else filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-    if(countDiv) countDiv.innerText = `${filtered.length} SCRIPT(S) SAVED ON CLOUD LOCAL`;
-
-    if (filtered.length === 0) {
-        listDiv.innerHTML = '';
-        if (sidebarDiv) sidebarDiv.innerHTML = '';
-        emptyDiv.style.display = 'block';
-        return;
-    }
-    emptyDiv.style.display = 'none';
-
-    let groupCounts = { 'ALL': window.STORE_DATA_CACHE.length };
-    window.STORE_DATA_CACHE.forEach(s => {
-        const tc = s.targetCode || 'OTHER';
-        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+    // Bước 2: Gom nhóm theo Idea (2 ký tự cuối của targetCode)
+    let groupCounts = { 'ALL': preFiltered.length };
+    preFiltered.forEach(s => {
+        let tc = s.targetCode || '';
+        let idea = tc.length >= 2 ? tc.substring(tc.length - 2).toUpperCase() : 'OTHER';
+        groupCounts[idea] = (groupCounts[idea] || 0) + 1;
     });
 
+    // Vẽ giao diện Sidebar
     let sidebarHtml = `
         <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
             ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
 
-    Object.keys(groupCounts).forEach(tc => {
-        if (tc === 'ALL') return;
-        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+    Object.keys(groupCounts).sort().forEach(idea => {
+        if (idea === 'ALL') return;
         sidebarHtml += `
-            <div onclick="window.currentStoreFilter='${tc}'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
-                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            <div onclick="window.currentStoreFilter='${idea}'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentStoreFilter === idea ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${idea} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[idea]}</span>
             </div>
         `;
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
+    // Bước 3: Lọc lần cuối dựa trên Tab Idea đang chọn ở Sidebar
+    let finalFiltered = preFiltered.filter(item => {
+        if (window.currentStoreFilter === 'all') return true;
+        let tc = item.targetCode || '';
+        let idea = tc.length >= 2 ? tc.substring(tc.length - 2).toUpperCase() : 'OTHER';
+        return idea === window.currentStoreFilter;
+    });
+
+    // Sắp xếp (Sort)
+    if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'code') finalFiltered.sort((a,b) => a.code.localeCompare(b.code));
+    else finalFiltered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${finalFiltered.length} SCRIPT(S) SAVED ON CLOUD LOCAL`;
+
+    if (finalFiltered.length === 0) {
+        listDiv.innerHTML = '';
+        if (emptyDiv) emptyDiv.style.display = 'block';
+        return;
+    }
+    if (emptyDiv) emptyDiv.style.display = 'none';
+
+    // Vẽ thẻ kịch bản (Card)
     let cardsHtml = '';
-    filtered.forEach(s => {
+    finalFiltered.forEach(s => {
         const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const dateStr = new Date(s.date).toLocaleString();
         const starColor = s.isFavorite ? '#eab308' : '#cbd5e1';
@@ -1810,10 +1822,11 @@ window.updateGalleryUI = function() {
     const sortVal = document.getElementById('gal-sort')?.value || "newest";
     const isFavOnly = document.getElementById('gal-check-fav-only')?.checked || false;
 
+    // Bước 1: Lọc theo ô Search và thẻ Favorite
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
         if (isFavOnly && !item.isFavorite) return false;
-
         if (!searchVal) return true;
+        
         const tc = item.targetCode || "";
         const pb = (item.productBase || "").toUpperCase();
         
@@ -1823,33 +1836,39 @@ window.updateGalleryUI = function() {
         return true;
     });
 
+    // Bước 2: Gom nhóm theo Idea (2 ký tự cuối của targetCode)
     let groupCounts = { 'ALL': preFiltered.length };
     preFiltered.forEach(s => {
-        const tc = s.targetCode || 'OTHER';
-        groupCounts[tc] = (groupCounts[tc] || 0) + 1;
+        let tc = s.targetCode || '';
+        let idea = tc.length >= 2 ? tc.substring(tc.length - 2).toUpperCase() : 'OTHER';
+        groupCounts[idea] = (groupCounts[idea] || 0) + 1;
     });
 
+    // Vẽ giao diện Sidebar
     let sidebarHtml = `
-        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
             ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
-    Object.keys(groupCounts).forEach(tc => {
-        if (tc === 'ALL') return;
-        const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
+    Object.keys(groupCounts).sort().forEach(idea => {
+        if (idea === 'ALL') return;
         sidebarHtml += `
-            <div onclick="window.currentGalleryTarget='${tc}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
-                ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
+            <div onclick="window.currentGalleryTarget='${idea}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === idea ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+                ${idea} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[idea]}</span>
             </div>
         `;
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
+    // Bước 3: Lọc lần cuối dựa trên Tab Idea đang chọn ở Sidebar
     let finalFiltered = preFiltered.filter(item => {
         if (window.currentGalleryTarget === 'all') return true;
-        return item.targetCode === window.currentGalleryTarget;
+        let tc = item.targetCode || '';
+        let idea = tc.length >= 2 ? tc.substring(tc.length - 2).toUpperCase() : 'OTHER';
+        return idea === window.currentGalleryTarget;
     });
 
+    // Sắp xếp (Sort)
     if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
     else if (sortVal === 'az') finalFiltered.sort((a,b) => (a.code || "").localeCompare(b.code || ""));
     else if (sortVal === 'za') finalFiltered.sort((a,b) => (b.code || "").localeCompare(a.code || ""));
@@ -1864,6 +1883,7 @@ window.updateGalleryUI = function() {
     }
     if(emptyDiv) emptyDiv.style.display = 'none';
 
+    // Vẽ thẻ Video
     let cardsHtml = '';
     finalFiltered.forEach(data => {
         const fullC = data.code || data.fullCode;

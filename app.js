@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V66 (Final: Isolate Images, Reset Video on Image Change, URL Fix)
+ * FULL AUTO V67 (Final: Hardened Error Handling, Clean URL, Spin UI, Fixed Polling)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -42,6 +42,10 @@ if (!document.getElementById('modern-ui-styles')) {
         
         .smart-dropdown-item { padding: 8px 12px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 8px; font-weight: 500;}
         .smart-dropdown-item:hover { background: #fef3c7; color: #ea580c; font-weight: bold; }
+        
+        /* Hiệu ứng Spinner */
+        .ph-spin { animation: ph-spin 1s linear infinite; }
+        @keyframes ph-spin { 100% { transform: rotate(360deg); } }
     </style>`);
 }
 
@@ -69,10 +73,9 @@ window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
 
 window.GLOBAL_CACHE_KEY = ""; 
-
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
 
-// ĐÃ FIX LỖI URL (Xóa dấu ngoặc vuông)
+// URL Chuẩn 100% Không có dấu ngoặc vuông
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 window.saveStateToCache = function() {
@@ -204,7 +207,7 @@ document.getElementById('btnAnalyze').onclick = async function () {
     let asin = "";
 
     analysisSec.style.display = 'none';
-    btn.innerText = "⏳ Loading The Product...";
+    btn.innerHTML = "<i class='ph ph-spinner ph-spin'></i> Loading...";
     btn.disabled = true;
 
     try {
@@ -213,7 +216,12 @@ document.getElementById('btnAnalyze').onclick = async function () {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: inputVal })
         });
-        const data = await res.json();
+        
+        const textData = await res.text();
+        let data;
+        try { data = JSON.parse(textData); } 
+        catch (e) { throw new Error(`Lỗi máy chủ: ${textData.substring(0, 50)}`); }
+        
         if (data.error) throw new Error(data.error);
 
         tempTargetCode = data.targetCode;
@@ -225,7 +233,7 @@ document.getElementById('btnAnalyze').onclick = async function () {
         document.getElementById('targetVideoCode').value = tempTargetCode;
         
     } catch (err) {
-        alert(`❌ Lỗi: ${err.message}`);
+        alert(`❌ Lỗi phân tích Link: ${err.message}`);
         const tcMatch = inputVal.match(/([A-Z]{3}\d{4,10}[A-Z0-9]*)/);
         if (tcMatch) tempTargetCode = tcMatch[1].toUpperCase();
     } finally {
@@ -666,7 +674,6 @@ window.renderCustomImagesPreview = function(code) {
     `;
 };
 
-// HÀM TÍNH TOẠ ĐỘ CON TRỎ ĐỂ ĐẶT MENU @IMAGE
 window.getCaretCoordinates = function(element, position) {
     const div = document.createElement('div');
     const style = window.getComputedStyle(element);
@@ -860,7 +867,7 @@ window.renderReviewView = function() {
             let videoBtnHtml = `<button onclick="window.generateVideo('${code}')" id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;" onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'"><i class="ph ph-video-camera"></i> Generate Video</button>`;
             
             if (videoStatus === 'generating') {
-                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner"></i> Generating (${videoTime}s)...</button>`;
+                videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: not-allowed; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; opacity: 0.7;"><i class="ph ph-spinner ph-spin"></i> Generating (${videoTime}s)...</button>`;
             } else if (videoStatus === 'succeeded') {
                 videoBtnHtml = `<button disabled id="video-btn-${code}" style="padding: 6px 12px; border: 1px solid #10b981; border-radius: 6px; cursor: default; background: #10b981; font-weight: 600; color: white; font-size: 12px;"><i class="ph ph-check-circle"></i> Video Ready!</button>`;
             }
@@ -981,7 +988,7 @@ window.generateAIScript = async function(fullCode, btn) {
     if (toggleBtn) { toggleBtn.style.display = 'inline-block'; toggleBtn.innerHTML = '<i class="ph ph-caret-down"></i>'; }
     btn.disabled = true;
 
-    let processText = window.GLOBAL_IMAGE_URL ? `<i><i class="ph ph-spinner"></i> Loading...</i>` : `<i>⏳</i>`;
+    let processText = window.GLOBAL_IMAGE_URL ? `<i><i class="ph ph-spinner ph-spin"></i> Loading...</i>` : `<i>⏳</i>`;
     resultBox.innerHTML = processText;
 
     try {
@@ -1013,7 +1020,11 @@ window.generateAIScript = async function(fullCode, btn) {
             })
         });
 
-        const data = await res.json();
+        const textData = await res.text();
+        let data;
+        try { data = JSON.parse(textData); } 
+        catch(e) { throw new Error(`Lỗi máy chủ (Không phản hồi JSON): ${textData.substring(0,50)}...`); }
+
         if (data.error) throw new Error(data.error);
 
         let badges = [];
@@ -1066,10 +1077,10 @@ window.generateShootingPrompt = async function(fullCode) {
 
     recipientInput.setAttribute('value', recipientDesc);
 
-    btn.innerHTML = "<i class='ph ph-spinner'></i>...";
+    btn.innerHTML = "<i class='ph ph-spinner ph-spin'></i>...";
     btn.disabled = true;
     resultBox.style.display = 'block';
-    resultBox.innerHTML = `<i>⏳ Generating Shooting Prompt...</i>`;
+    resultBox.innerHTML = `<i><i class="ph ph-spinner ph-spin"></i> Generating Shooting Prompt...</i>`;
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/generate-ugc-prompt`, {
@@ -1081,12 +1092,11 @@ window.generateShootingPrompt = async function(fullCode) {
             })
         });
 
-        if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`Server error (${res.status}): ${errText.substring(0, 100)}`);
-        }
+        const textData = await res.text();
+        let data;
+        try { data = JSON.parse(textData); } 
+        catch (e) { throw new Error(`Lỗi máy chủ (Không phản hồi JSON): ${textData.substring(0, 50)}...`); }
 
-        const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         const copyPromptStr = `navigator.clipboard.writeText(document.getElementById('prompt-text-${fullCode}').innerText.trim()); this.innerHTML='<i class=\\'ph ph-check\\'></i> Copied!'; setTimeout(()=>this.innerHTML='<i class=\\'ph ph-copy\\'></i> Copy Prompt', 2000);`;
@@ -1125,7 +1135,7 @@ window.generateShootingPrompt = async function(fullCode) {
         window.AI_CACHE.set(fullCode, cacheData);
         window.saveStateToCache();
     } catch (err) {
-        resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
+        resultBox.innerHTML = `<span style="color:red;">❌ Lỗi: ${err.message}</span>`;
     } finally {
         btn.innerHTML = "<i class='ph ph-sparkle'></i> Generate";
         btn.disabled = false;
@@ -1148,7 +1158,6 @@ window.editPrompt = function(code) {
     textarea.value = textDiv.innerText;
 };
 
-// ĐÃ CẬP NHẬT: So sánh Text, gõ khoảng trắng không bị mất trạng thái Video
 window.savePromptEdit = function(code) {
     const textarea = document.getElementById(`prompt-textarea-${code}`);
     if(!textarea) return;
@@ -1217,7 +1226,7 @@ window.generateVideo = async function(fullCode) {
 
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
-        initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
+        initialBtn.innerHTML = "<i class='ph ph-spinner ph-spin'></i> Requesting...";
         initialBtn.disabled = true;
         initialBtn.style.opacity = "0.7";
         initialBtn.style.cursor = "not-allowed";
@@ -1237,7 +1246,11 @@ window.generateVideo = async function(fullCode) {
             body: JSON.stringify(payloadParams)
         });
 
-        const data = await res.json();
+        const textData = await res.text();
+        let data;
+        try { data = JSON.parse(textData); } 
+        catch (e) { throw new Error(`Lỗi Server (Không phản hồi JSON): ${textData.substring(0, 50)}...`); }
+
         if (data.error) throw new Error(data.error);
         if (!data.taskId) throw new Error("Không nhận được Task ID từ hệ thống.");
 
@@ -1252,12 +1265,15 @@ window.generateVideo = async function(fullCode) {
             
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
-                currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
+                currentBtn.innerHTML = `<i class="ph ph-spinner ph-spin"></i> Generating (${cData.videoGenTime}s)...`;
             }
 
             try {
                 const statusRes = await fetch(`${API_BASE_URL}/api/check-video/${taskId}`);
-                const statusData = await statusRes.json();
+                const statusText = await statusRes.text();
+                let statusData;
+                try { statusData = JSON.parse(statusText); } 
+                catch(e) { throw new Error(`Lỗi phản hồi Server: ${statusText.substring(0,40)}...`); }
 
                 if (statusData.status === 'succeeded' || statusData.status === 'SUCCEEDED') {
                     clearInterval(pollInterval);
@@ -1298,14 +1314,16 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
-                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
                     
                 } else if (statusData.status === 'failed' || statusData.status === 'FAILED') {
                     clearInterval(pollInterval);
-                    throw new Error(statusData.error || "Video generation failed.");
+                    throw new Error(statusData.error || "Hệ thống BytePlus báo lỗi không xác định.");
+                } else if (statusData.error) {
+                    clearInterval(pollInterval);
+                    throw new Error(statusData.error);
                 }
             } catch (pollErr) {
                 clearInterval(pollInterval);
@@ -1320,6 +1338,8 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
+                console.error("Lỗi kiểm tra tiến trình video:", pollErr);
+                alert(`❌ Trình tạo Video bị gián đoạn: ${pollErr.message}`);
             }
 
             if (cData.videoGenTime >= 600) { 
@@ -1335,7 +1355,7 @@ window.generateVideo = async function(fullCode) {
                     timeoutBtn.style.opacity = "1";
                     timeoutBtn.style.cursor = "pointer";
                 }
-                alert(`⏳ Quá thời gian chờ (10 phút) tạo video cho mã [${fullCode}].`);
+                alert(`⏳ Quá thời gian chờ (10 phút) tạo video cho mã [${fullCode}]. Hệ thống đã tự động hủy yêu cầu.`);
             }
         }, 5000);
 
@@ -1371,7 +1391,7 @@ window.saveScript = async function(fullCode) {
 
     const btn = document.getElementById(`save-btn-${fullCode}`);
     if (btn) {
-        btn.innerHTML = "<i class='ph ph-spinner'></i> Saving...";
+        btn.innerHTML = "<i class='ph ph-spinner ph-spin'></i> Saving...";
         btn.disabled = true;
     }
 
@@ -1546,7 +1566,7 @@ window.renderStore = async function() {
     const listDiv = document.getElementById('store-list');
     if(!listDiv) return;
 
-    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px; width:100%;'>⏳ Đang tải dữ liệu từ máy chủ đám mây...</p>";
+    listDiv.innerHTML = "<p style='text-align:center; color:#999; padding:40px; width:100%;'><i class='ph ph-spinner ph-spin' style='font-size:24px; color:#ea580c;'></i><br>Đang tải dữ liệu từ máy chủ đám mây...</p>";
     
     try {
         const res = await fetch(`${API_BASE_URL}/api/store?t=${Date.now()}`);
@@ -1571,7 +1591,6 @@ window.updateStoreUI = function() {
 
     if(!listDiv) return;
 
-    // Bước 1: Lọc theo ô Search và thẻ Favorite
     let preFiltered = window.STORE_DATA_CACHE.filter(item => {
         if (isFavOnly && !item.isFavorite) return false;
         if (!searchVal) return true;
@@ -1581,7 +1600,6 @@ window.updateStoreUI = function() {
                (item.targetCode && item.targetCode.toLowerCase().includes(searchVal));
     });
 
-    // Bước 2: Gom nhóm theo Idea (2 ký tự cuối của targetCode)
     let groupCounts = { 'ALL': preFiltered.length };
     preFiltered.forEach(s => {
         let tc = s.targetCode || '';
@@ -1589,7 +1607,6 @@ window.updateStoreUI = function() {
         groupCounts[idea] = (groupCounts[idea] || 0) + 1;
     });
 
-    // Vẽ giao diện Sidebar
     let sidebarHtml = `
         <div onclick="window.currentStoreFilter='all'; window.updateStoreUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentStoreFilter === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
             ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
@@ -1605,7 +1622,6 @@ window.updateStoreUI = function() {
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
-    // Bước 3: Lọc lần cuối dựa trên Tab Idea đang chọn ở Sidebar
     let finalFiltered = preFiltered.filter(item => {
         if (window.currentStoreFilter === 'all') return true;
         let tc = item.targetCode || '';
@@ -1613,7 +1629,6 @@ window.updateStoreUI = function() {
         return idea === window.currentStoreFilter;
     });
 
-    // Sắp xếp (Sort)
     if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
     else if (sortVal === 'code') finalFiltered.sort((a,b) => a.code.localeCompare(b.code));
     else finalFiltered.sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -1627,7 +1642,6 @@ window.updateStoreUI = function() {
     }
     if (emptyDiv) emptyDiv.style.display = 'none';
 
-    // Vẽ thẻ kịch bản (Card)
     let cardsHtml = '';
     finalFiltered.forEach(s => {
         const cleanContent = s.content.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1773,7 +1787,7 @@ window.renderGalleryView = async function() {
     const gridDiv = document.getElementById('gallery-grid');
     if(!gridDiv) return;
 
-    gridDiv.innerHTML = "<p style='color:#999; padding:40px; width:100%; text-align:center;'>⏳ Đang tải dữ liệu Gallery từ Cloud Local...</p>";
+    gridDiv.innerHTML = "<p style='color:#999; padding:40px; width:100%; text-align:center;'><i class='ph ph-spinner ph-spin' style='font-size:24px; color:#ea580c;'></i><br>Đang tải dữ liệu Gallery từ Cloud Local...</p>";
     
     try {
         const res = await fetch(`${API_BASE_URL}/api/gallery?t=${Date.now()}`);
@@ -1822,11 +1836,10 @@ window.updateGalleryUI = function() {
     const sortVal = document.getElementById('gal-sort')?.value || "newest";
     const isFavOnly = document.getElementById('gal-check-fav-only')?.checked || false;
 
-    // Bước 1: Lọc theo ô Search và thẻ Favorite
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
         if (isFavOnly && !item.isFavorite) return false;
+
         if (!searchVal) return true;
-        
         const tc = item.targetCode || "";
         const pb = (item.productBase || "").toUpperCase();
         
@@ -1836,7 +1849,6 @@ window.updateGalleryUI = function() {
         return true;
     });
 
-    // Bước 2: Gom nhóm theo Idea (2 ký tự cuối của targetCode)
     let groupCounts = { 'ALL': preFiltered.length };
     preFiltered.forEach(s => {
         let tc = s.targetCode || '';
@@ -1844,23 +1856,21 @@ window.updateGalleryUI = function() {
         groupCounts[idea] = (groupCounts[idea] || 0) + 1;
     });
 
-    // Vẽ giao diện Sidebar
     let sidebarHtml = `
-        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #0ea5e9; color: white;' : 'background: #f8fafc; color: #64748b;'}">
             ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
     Object.keys(groupCounts).sort().forEach(idea => {
         if (idea === 'ALL') return;
         sidebarHtml += `
-            <div onclick="window.currentGalleryTarget='${idea}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === idea ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
+            <div onclick="window.currentGalleryTarget='${idea}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === idea ? 'background: #e0f2fe; border-left: 4px solid #0ea5e9; color: #0ea5e9;' : 'color: #94a3b8;'}">
                 ${idea} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[idea]}</span>
             </div>
         `;
     });
     if(sidebarDiv) sidebarDiv.innerHTML = sidebarHtml;
 
-    // Bước 3: Lọc lần cuối dựa trên Tab Idea đang chọn ở Sidebar
     let finalFiltered = preFiltered.filter(item => {
         if (window.currentGalleryTarget === 'all') return true;
         let tc = item.targetCode || '';
@@ -1868,7 +1878,6 @@ window.updateGalleryUI = function() {
         return idea === window.currentGalleryTarget;
     });
 
-    // Sắp xếp (Sort)
     if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
     else if (sortVal === 'az') finalFiltered.sort((a,b) => (a.code || "").localeCompare(b.code || ""));
     else if (sortVal === 'za') finalFiltered.sort((a,b) => (b.code || "").localeCompare(a.code || ""));
@@ -1883,7 +1892,6 @@ window.updateGalleryUI = function() {
     }
     if(emptyDiv) emptyDiv.style.display = 'none';
 
-    // Vẽ thẻ Video
     let cardsHtml = '';
     finalFiltered.forEach(data => {
         const fullC = data.code || data.fullCode;

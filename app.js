@@ -808,8 +808,6 @@ window.renderReviewView = function() {
         ? `<img src="${window.GLOBAL_IMAGE_URL}" style="height: 44px; width: 44px; border-radius: 6px; border: 1px solid #ccc; object-fit: cover; margin-right: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`
         : "";
 
-    const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;"><i class="ph ph-coins"></i> BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
-
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
     pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
@@ -822,12 +820,9 @@ window.renderReviewView = function() {
             </div>
             ${linkBadgeHtml}
         </div>
-        <div style="display:flex; align-items:center;">
-            ${tokenDisplayHtml}
-        </div>
     `;
     headers.parentNode.insertBefore(pbContainer, headers);
-
+    
     const grouped = {};
     window.FINAL_SELECTED_CODES.forEach(item => {
         if (!grouped[item.pairKey]) grouped[item.pairKey] = [];

@@ -1279,12 +1279,6 @@ window.generateVideo = async function(fullCode) {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
-                    
-                    if (statusData.usage && statusData.usage > 0) {
-                        window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
-                        localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
-                        window.updateTokenDisplay();
-                    }
 
                     window.saveStateToCache();
 
@@ -1856,15 +1850,15 @@ window.updateGalleryUI = function() {
         groupCounts[idea] = (groupCounts[idea] || 0) + 1;
     });
 
-    let sidebarHtml = `
-        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #0ea5e9; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-            ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
+let sidebarHtml = `
+        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
     Object.keys(groupCounts).sort().forEach(idea => {
         if (idea === 'ALL') return;
         sidebarHtml += `
-            <div onclick="window.currentGalleryTarget='${idea}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === idea ? 'background: #e0f2fe; border-left: 4px solid #0ea5e9; color: #0ea5e9;' : 'color: #94a3b8;'}">
+            <div onclick="window.currentGalleryTarget='${idea}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === idea ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
                 ${idea} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[idea]}</span>
             </div>
         `;

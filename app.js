@@ -1870,7 +1870,10 @@ window.updateGalleryUI = function() {
                         <b>Product Base:</b> <span style="text-transform:uppercase;">${data.productBase}</span><br>
                         <b>Video Code:</b> ${fullC}
                     </p>
-                    <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 10px; font-weight: 600; color: #334155; font-size: 13px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; margin-top: auto; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"><i class="ph ph-note-pencil"></i> Check Prompt</button>
+                    <div style="display: flex; gap: 8px; margin-top: auto;">
+                        <button onclick="window.showCloudGalScriptModal('${data.id}')" style="flex: 1; padding: 10px; font-weight: 600; color: #334155; font-size: 13px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"><i class="ph ph-note-pencil"></i> Prompt</button>
+                        ${data.videoUrl ? `<button onclick="window.downloadGalleryVideo('${data.videoUrl}', '${fullC}', this)" style="flex: 1; padding: 10px; font-weight: 600; color: #166534; font-size: 13px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'"><i class="ph ph-download-simple"></i> Video</button>` : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -1938,3 +1941,43 @@ document.addEventListener('click', function(e) {
         modal.style.display = 'none';
     }
 });
+// ==========================================
+// HÀM TẢI VIDEO THÔNG MINH TRONG GALLERY
+// ==========================================
+window.downloadGalleryVideo = async function(url, code, btn) {
+    // Lưu trạng thái nút ban đầu để phục hồi
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i>';
+    btn.disabled = true;
+
+    try {
+        // Cố gắng fetch để ép trình duyệt tải trực tiếp thành file .mp4
+        const response = await fetch(url);
+        if(!response.ok) throw new Error("CORS or Network issue");
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `Macorner_${code}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+        
+        // Báo hiệu tải thành công
+        btn.innerHTML = '<i class="ph ph-check"></i>';
+        setTimeout(() => { 
+            btn.innerHTML = originalHtml; 
+            btn.disabled = false; 
+        }, 2000);
+
+    } catch(e) {
+        // Fallback: Nếu Server BytePlus chặn CORS không cho fetch ngầm, 
+        // hệ thống sẽ bật video sang tab mới để user ấn Ctrl+S (hoặc bấm chuột phải -> Lưu video).
+        window.open(url, '_blank');
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+};

@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V66 (Fix Highlight History Matrix, Clean UI, Image Collapse Stack)
+ * FULL AUTO V65 (Fix Tab Jumping, Modal Outside Click, Close Button Overlap)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -26,6 +26,19 @@ if (!document.getElementById('modern-ui-styles')) {
         .prompt-view-box::-webkit-scrollbar-track { background: transparent; }
         .prompt-view-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .prompt-view-box::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* CSS Fix Fullscreen Video 9:16 */
+        .gallery-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+        .gallery-video::-webkit-media-controls-enclosure { object-fit: contain !important; }
+        .gallery-video:-webkit-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        .gallery-video:-moz-full-screen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        .gallery-video:fullscreen { width: 100% !important; height: 100% !important; object-fit: contain !important; background: #000 !important; }
+        
+        /* Box Upload Image */
+        .custom-upload-area { display: flex; gap: 8px; align-items: center; }
+        .upload-thumb-wrap { position: relative; width: 44px; height: 44px; border-radius: 6px; border: 1px solid #cbd5e1; overflow: hidden; background: #f1f5f9; }
+        .upload-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .upload-thumb-del { position: absolute; top: 0; right: 0; background: rgba(220,38,38,0.9); color: white; border: none; font-size: 10px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-bottom-left-radius: 4px; }
         
         .smart-dropdown-item { padding: 8px 12px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 8px; font-weight: 500;}
         .smart-dropdown-item:hover { background: #fef3c7; color: #ea580c; font-weight: bold; }
@@ -195,7 +208,7 @@ document.getElementById('btnAnalyze').onclick = async function () {
     let asin = "";
 
     analysisSec.style.display = 'none';
-    btn.innerHTML = "<i class='ph ph-spinner'></i> Loading The Product...";
+    btn.innerText = "⏳ Loading The Product...";
     btn.disabled = true;
 
     try {
@@ -301,6 +314,21 @@ window.renderMatrix = function(niche, limit, targetCode) {
 
     const container = document.getElementById('matrixContainer');
 
+    if (!document.getElementById('canva-btn-style')) {
+        document.head.insertAdjacentHTML('beforeend', `
+        <style id="canva-btn-style">
+            .matrix-scroll-area { width: 100%; overflow-x: auto; padding: 15px 25px 25px 15px; box-sizing: border-box; }
+            .canva-matrix-wrapper { position: relative; display: inline-block; min-width: 100%; }
+            .canva-matrix-wrapper table { width: 100%; border-collapse: collapse; margin: 0; }
+            .canva-add-btn { width: 26px; height: 26px; border-radius: 50%; background: #ffffff; border: 1.5px solid #cbd5e1; color: #64748b; font-size: 18px; font-weight: 500; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.15); transition: all 0.2s ease; position: absolute; z-index: 10; user-select: none; padding-bottom: 2px; box-sizing: border-box; }
+            .canva-add-btn:hover { background: #f8fafc; color: #f97316; border-color: #f97316; transform: scale(1.15); }
+            .canva-add-btn.e2-btn { top: 50%; right: 0px; transform: translate(50%, -50%); }
+            .canva-add-btn.e2-btn:hover { transform: translate(50%, -50%) scale(1.15); }
+            .canva-add-btn.e4-btn { bottom: 0px; left: 50%; transform: translate(-50%, 50%); }
+            .canva-add-btn.e4-btn:hover { transform: translate(-50%, 50%) scale(1.15); }
+        </style>`);
+    }
+
     let html = `<div class="matrix-scroll-area"><div class="canva-matrix-wrapper"><table><thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
     e2List.forEach((e2) => { 
         html += `<th style="text-align: center;"><span class="code-box" data-type="E2" data-code="${e2.code}">${e2.code}</span><br><small>${e2.isManual ? '<span style="color:#f97316; font-weight:bold;">Custom</span>' : '$' + e2.spent.toLocaleString()}</small></th>`; 
@@ -314,7 +342,6 @@ window.renderMatrix = function(niche, limit, targetCode) {
             const pairKey = `${e2.code}-${e4.code}`;
             const isRan = window.RAW_DATA.some(s => s.adName.toUpperCase().includes(targetCode.toUpperCase()) && s.elements && s.elements.substring(2, 4) === e2.code && s.elements.substring(6, 8) === e4.code);
             const isChecked = window.SELECTED_PAIRS.has(pairKey) ? 'checked' : '';
-            // Gắn class cell-history chuẩn cho Matrix
             html += `<td class="${isRan ? 'cell-history' : ''}" style="text-align: center;"><input type="checkbox" id="mat_${window.GLOBAL_CACHE_KEY}_${e2.code}_${e4.code}" autocomplete="off" class="round-checkbox" ${isChecked} onchange="window.togglePair('${e2.code}', '${e4.code}', this)"></td>`;
         });
         html += `</tr>`;
@@ -535,7 +562,7 @@ window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     window.renderReviewView();
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM VÀ SMART MENTION (DẠNG STACK MỚI)
+// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -842,9 +869,7 @@ window.renderReviewView = function() {
                 
                 <div id="prompt-edit-area-${code}" style="display:none; position:relative;">
                     <textarea id="prompt-textarea-${code}" oninput="window.handlePromptInput('${code}', this)" style="width:100%; min-height:450px; padding:15px; font-family:inherit; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; outline:none; transition:border 0.2s; box-sizing:border-box; resize:vertical; line-height:1.6;" onfocus="this.style.borderColor='#ea580c'"></textarea>
-                    
                     <div id="suggest-box-${code}" style="display:none; position:absolute; background:white; border:1px solid #cbd5e1; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-radius:6px; padding:6px; z-index:100; max-height:150px; overflow-y:auto; min-width:140px;"></div>
-                    
                     <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
                         <button onclick="window.cancelPromptEdit('${code}')" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-x"></i> Cancel</button>
                         <button onclick="window.savePromptEdit('${code}')" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; transition:0.2s;"><i class="ph ph-floppy-disk"></i> Save Edit</button>
@@ -1054,7 +1079,7 @@ window.generateShootingPrompt = async function(fullCode) {
                 <div style="display:flex; gap:8px; margin-left:auto;">
                     <button onclick="window.editPrompt('${fullCode}')" id="edit-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; background: #f0f9ff; font-weight: 600; color: #0369a1; font-size: 12px; transition:all 0.2s;"><i class="ph ph-note-pencil"></i> Edit</button>
                     <button onclick="${copyPromptStr}" id="copy-prompt-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; background: #fff7ed; font-weight: 600; color: #c2410c; font-size: 12px; transition:all 0.2s;"><i class="ph ph-copy"></i> Copy Prompt</button>
-                    <button title="Est. Cost: ~5,000 - 15,000 Tokens (Seedance 2.0)" onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;"><i class="ph ph-video-camera"></i> Generate Video</button>
+                    <button onclick="window.generateVideo('${fullCode}')" id="video-btn-${fullCode}" style="padding: 6px 12px; border: 1px solid #c084fc; border-radius: 6px; cursor: pointer; background: #f5f3ff; font-weight: 600; color: #6d28d9; font-size: 12px; transition:all 0.2s;"><i class="ph ph-video-camera"></i> Generate Video</button>
                 </div>
             </div>
             
@@ -1148,11 +1173,13 @@ window.generateVideo = async function(fullCode) {
     const cacheData = window.AI_CACHE.get(fullCode);
     if (!cacheData || !cacheData.shootingPrompt) return alert("Không tìm thấy Prompt!");
 
+    // Cập nhật trạng thái Cache ngay lập tức
     cacheData.videoGenStatus = 'generating';
     cacheData.videoGenTime = 0;
     window.AI_CACHE.set(fullCode, cacheData);
     window.saveStateToCache();
 
+    // Cập nhật UI ngay nếu DOM đang tồn tại
     const initialBtn = document.getElementById(`video-btn-${fullCode}`);
     if (initialBtn) {
         initialBtn.innerHTML = "<i class='ph ph-spinner'></i> Requesting...";
@@ -1180,6 +1207,7 @@ window.generateVideo = async function(fullCode) {
 
         const taskId = data.taskId;
 
+        // Vòng lặp đếm giờ độc lập, tự tìm DOM mỗi lần chạy
         const pollInterval = setInterval(async () => {
             const cData = window.AI_CACHE.get(fullCode);
             if(!cData) { clearInterval(pollInterval); return; }
@@ -1187,6 +1215,7 @@ window.generateVideo = async function(fullCode) {
             cData.videoGenTime = (cData.videoGenTime || 0) + 5;
             window.AI_CACHE.set(fullCode, cData);
             
+            // Tìm nút hiện tại (đề phòng user đổi tab về lại sinh ra DOM mới)
             const currentBtn = document.getElementById(`video-btn-${fullCode}`);
             if (currentBtn && cData.videoGenStatus === 'generating') {
                 currentBtn.innerHTML = `<i class="ph ph-spinner"></i> Generating (${cData.videoGenTime}s)...`;
@@ -1200,13 +1229,6 @@ window.generateVideo = async function(fullCode) {
                     clearInterval(pollInterval);
                     cData.videoGenStatus = 'succeeded';
                     window.AI_CACHE.set(fullCode, cData);
-                    
-                    if (statusData.usage && statusData.usage > 0) {
-                        window.BYTEPLUS_TOTAL_TOKENS += statusData.usage;
-                        localStorage.setItem('bp_total_tokens', window.BYTEPLUS_TOTAL_TOKENS);
-                        window.updateTokenDisplay();
-                    }
-
                     window.saveStateToCache();
 
                     if (currentBtn) {
@@ -1235,6 +1257,7 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
+                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1256,9 +1279,10 @@ window.generateVideo = async function(fullCode) {
                     errBtn.style.opacity = "1";
                     errBtn.style.cursor = "pointer";
                 }
+                console.error("Lỗi kiểm tra video:", pollErr.message);
             }
 
-            if (cData.videoGenTime >= 600) { 
+            if (cData.videoGenTime >= 600) { // Giới hạn 10 phút
                 clearInterval(pollInterval);
                 cData.videoGenStatus = 'failed';
                 window.AI_CACHE.set(fullCode, cData);
@@ -1649,17 +1673,36 @@ window.buildGalleryUI = function() {
                 <button class="btn-danger" onclick="window.clearGallery()" style="font-size:13px; padding:6px 14px;"><i class="ph ph-trash"></i> Clear All Gallery</button>
             </header>
             <section class="card" id="gallery-container-wrap" style="padding: 24px;">
-                <div id="gallery-toolbar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
-                    <strong style="color:#64748b; font-size:13px; margin-right:10px;">LỌC:</strong>
-                    <select id="smart-filter-type" onchange="window.updateSmartDatalist()" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; min-width:140px; outline:none;">
-                        <option value="pb">Product Base</option>
-                        <option value="niche">Niche (3 ký tự đầu)</option>
-                        <option value="idea">Idea (2 ký tự cuối)</option>
-                    </select>
-                    <input type="text" id="smart-filter-input" list="smart-filter-list" placeholder="Chọn loại lọc và gõ để tìm..." oninput="window.updateGalleryUI()" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px; flex:1; min-width:200px; outline:none;">
-                    <datalist id="smart-filter-list"></datalist>
+                <div id="gallery-toolbar" style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center;">
+                    
+                    <div style="display:flex; gap:8px; align-items:center; flex:1; min-width:300px;">
+                        <i class="ph ph-funnel" style="color:#94a3b8; font-size:18px;"></i>
+                        <select id="smart-filter-type" onchange="window.updateSmartDatalist()" style="padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; font-size:14px; outline:none; background:white; color:#334155; cursor:pointer;">
+                            <option value="pb">Product Base</option>
+                            <option value="niche">Niche (3 ký tự đầu)</option>
+                            <option value="idea">Idea (2 ký tự cuối)</option>
+                        </select>
+                        <input type="text" id="smart-filter-input" list="smart-filter-list" placeholder="Chọn loại lọc và gõ để tìm..." oninput="window.updateGalleryUI()" style="padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; font-size:14px; flex:1; outline:none;">
+                        <datalist id="smart-filter-list"></datalist>
+                    </div>
+
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <select id="gal-sort" onchange="window.updateGalleryUI()" style="padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; font-size:14px; outline:none; background:white; color:#334155; cursor:pointer;">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                            <option value="az">By code A–Z</option>
+                            <option value="za">By code Z–A</option>
+                        </select>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#ea580c; background:#fff7ed; padding:10px 16px; border-radius:8px; border:1px solid #fed7aa; user-select:none;">
+                            <input type="checkbox" id="gal-check-fav-only" onchange="window.updateGalleryUI()" style="cursor:pointer; accent-color: #ea580c; width:16px; height:16px;">
+                            <i class="ph ph-star"></i> Favorites
+                        </label>
+                    </div>
                 </div>
-                <div style="display:flex; gap:20px; align-items:flex-start;">
+
+                <div id="gallery-count" style="font-size:13px; color:#64748b; font-weight:500; margin-bottom:16px;"></div>
+
+                <div style="display:flex; gap:24px; align-items:flex-start;">
                     <div id="gallery-sidebar" style="min-width:140px; border-right:1px solid #e2e8f0; padding-right:15px; display:flex; flex-direction:column; gap:8px;"></div>
                     <div id="gallery-grid" class="gallery-grid" style="display:flex; flex-wrap:wrap; gap:20px; flex:1;"></div>
                 </div>
@@ -1720,11 +1763,16 @@ window.updateGalleryUI = function() {
     const gridDiv = document.getElementById('gallery-grid');
     const sidebarDiv = document.getElementById('gallery-sidebar');
     const emptyDiv = document.getElementById('gallery-empty');
+    const countDiv = document.getElementById('gallery-count');
     
     const type = document.getElementById('smart-filter-type')?.value;
     const searchVal = document.getElementById('smart-filter-input')?.value.trim().toUpperCase();
+    const sortVal = document.getElementById('gal-sort')?.value || "newest";
+    const isFavOnly = document.getElementById('gal-check-fav-only')?.checked || false;
 
     let preFiltered = window.GALLERY_DATA_CACHE.filter(item => {
+        if (isFavOnly && !item.isFavorite) return false;
+
         if (!searchVal) return true;
         const tc = item.targetCode || "";
         const pb = (item.productBase || "").toUpperCase();
@@ -1742,15 +1790,15 @@ window.updateGalleryUI = function() {
     });
 
     let sidebarHtml = `
-        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #0ea5e9; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-            ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
+        <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
+            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
     Object.keys(groupCounts).forEach(tc => {
         if (tc === 'ALL') return;
         const shortTc = tc.length > 5 ? tc.substring(tc.length - 2) : tc; 
         sidebarHtml += `
-            <div onclick="window.currentGalleryTarget='${tc}'; window.updateGalleryUI()" style="padding: 10px; border-radius: 6px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === tc ? 'background: #e0f2fe; border-left: 4px solid #0ea5e9; color: #0ea5e9;' : 'color: #94a3b8;'}">
+            <div onclick="window.currentGalleryTarget='${tc}'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; ${window.currentGalleryTarget === tc ? 'background: #fff7ed; border-left: 4px solid #ea580c; color: #ea580c;' : 'color: #94a3b8;'}">
                 ${shortTc} <br><span style="font-size:11px; opacity:0.8;">${groupCounts[tc]}</span>
             </div>
         `;
@@ -1762,9 +1810,16 @@ window.updateGalleryUI = function() {
         return item.targetCode === window.currentGalleryTarget;
     });
 
+    if (sortVal === 'oldest') finalFiltered.sort((a,b) => new Date(a.date) - new Date(b.date));
+    else if (sortVal === 'az') finalFiltered.sort((a,b) => (a.code || "").localeCompare(b.code || ""));
+    else if (sortVal === 'za') finalFiltered.sort((a,b) => (b.code || "").localeCompare(a.code || ""));
+    else finalFiltered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(countDiv) countDiv.innerText = `${finalFiltered.length} VIDEO(S) FOUND ON CLOUD`;
+
     if (finalFiltered.length === 0) {
         if (gridDiv) gridDiv.innerHTML = '';
-        if(emptyDiv) emptyDiv.style.display = 'block';
+        if (emptyDiv) emptyDiv.style.display = 'block';
         return;
     }
     if(emptyDiv) emptyDiv.style.display = 'none';
@@ -1773,29 +1828,49 @@ window.updateGalleryUI = function() {
     finalFiltered.forEach(data => {
         const fullC = data.code || data.fullCode;
         const targetC = data.targetCode || fullC.substring(0,3);
+        const starColor = data.isFavorite ? '#eab308' : '#cbd5e1';
+        
         const mediaHtml = data.videoUrl
             ? `<video class="gallery-video" src="${data.videoUrl}" controls controlsList="nodownload" preload="metadata" poster="${data.imageUrl || ''}"></video>`
             : `<a href="${data.imageUrl}" target="_blank"><img src="${data.imageUrl}" style="width: 100%; height: 100%; object-fit: contain; background:#000;"></a>`;
 
         cardsHtml += `
-            <div class="gallery-card" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 260px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+            <div class="gallery-card" style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; width: 260px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); display: flex; flex-direction: column;">
                 <div style="width: 100%; aspect-ratio: 9 / 16; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; position:relative;">
-                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:4px; color:#dc2626; cursor:pointer; font-size:14px; padding:4px 6px; z-index:10;" title="Xóa khỏi Cloud Local"><i class="ph ph-trash"></i></button>
+                    
+                    <button onclick="window.toggleGalleryFavorite('${data.id}')" style="position:absolute; top:8px; left:8px; background:rgba(255,255,255,0.9); border:none; border-radius:6px; color:${starColor}; cursor:pointer; font-size:18px; padding:6px; z-index:10; display:flex; align-items:center; justify-content:center; transition:0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                        <i class="${data.isFavorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i>
+                    </button>
+
+                    <button onclick="window.deleteGalleryItem('${data.id}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:1px solid #fca5a5; border-radius:6px; color:#dc2626; cursor:pointer; font-size:16px; padding:5px; z-index:10; transition:0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Xóa khỏi Cloud Local"><i class="ph ph-trash"></i></button>
                     ${mediaHtml}
                 </div>
-                <div style="padding: 15px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #0ea5e9; text-transform: uppercase;">Mẫu: ${targetC}</h4>
-                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; line-height:1.4;" title="${data.productBase}">
+                <div style="padding: 16px; border-top: 1px solid #e2e8f0; flex-grow: 1; display: flex; flex-direction: column;">
+                    <h4 style="margin: 0 0 6px 0; font-size: 16px; color: #ea580c; text-transform: uppercase;">Mẫu: ${targetC}</h4>
+                    <p style="margin: 0 0 12px 0; font-size: 12px; color: #64748b; line-height:1.5;" title="${data.productBase}">
                         <b>Product Base:</b> <span style="text-transform:uppercase;">${data.productBase}</span><br>
                         <b>Video Code:</b> ${fullC}
                     </p>
-                    <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 8px; font-weight: bold; color: #334155; font-size: 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-top: auto;"><i class="ph ph-note-pencil"></i> Check Prompt</button>
+                    <button onclick="window.showCloudGalScriptModal('${data.id}')" style="width: 100%; padding: 10px; font-weight: 600; color: #334155; font-size: 13px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; margin-top: auto; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"><i class="ph ph-note-pencil"></i> Check Prompt</button>
                 </div>
             </div>
         `;
     });
     if(gridDiv) gridDiv.innerHTML = cardsHtml;
 };
+
+window.toggleGalleryFavorite = async function(id) {
+    try {
+        const item = window.GALLERY_DATA_CACHE.find(s => s.id === id);
+        if(item) {
+            item.isFavorite = !item.isFavorite;
+            window.updateGalleryUI();
+        }
+        await fetch(`${API_BASE_URL}/api/gallery/${id}/favorite`, { method: 'PATCH' });
+    } catch(e) {
+        alert("Lỗi khi cập nhật Cloud!");
+    }
+}
 
 window.showCloudGalScriptModal = function(id) {
     const data = window.GALLERY_DATA_CACHE.find(i => i.id === id);

@@ -758,3 +758,43 @@ td {
     font-size: 15px;
     color: var(--text-body);
 }
+
+/* ================== FREEZE MATRIX HEADER (DÒNG & CỘT ĐẦU) ================== */
+
+/* 1. Giới hạn chiều cao của khung bảng để bật thanh cuộn dọc */
+#matrixContainer .matrix-scroll-area {
+    max-height: 65vh; /* Sếp có thể thay đổi số này (vd: 500px) để chỉnh độ dài khung hiển thị */
+    overflow-y: auto;
+    padding-top: 0 !important; /* Gỡ khoảng hở trên cùng để tiêu đề bám sát mí */
+}
+
+/* 2. Đóng băng dòng đầu tiên (Dòng E2) */
+#matrixContainer th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-body) !important; /* Đổ nền đặc che nội dung cuộn bên dưới */
+    z-index: 20;
+    box-shadow: 0 1px 0 var(--border-light); /* Dùng bóng đổ thay cho border-bottom bị mất khi cuộn */
+}
+
+/* 3. Đóng băng cột đầu tiên (Cột E4) */
+#matrixContainer td:first-child,
+#matrixContainer th:first-child {
+    position: sticky;
+    left: 0;
+    background-color: var(--bg-surface);
+    z-index: 15;
+    box-shadow: 1px 0 0 var(--border-light); /* Bóng đổ thay cho border-right */
+}
+
+/* 4. Đồng bộ màu nền của cột E4 khi rê chuột (Hover) ngang qua dòng */
+#matrixContainer tr:hover td:first-child {
+    background-color: #f8fafc; 
+}
+
+/* 5. Góc trên cùng bên trái (Ô giao điểm E4 \ E2) cần nổi lên cao nhất */
+#matrixContainer th:first-child {
+    z-index: 25;
+    background-color: var(--bg-body) !important;
+    box-shadow: 1px 1px 0 var(--border-light);
+}

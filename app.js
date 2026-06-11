@@ -585,40 +585,60 @@ window.resizeImageBase64 = function(file) {
     });
 }
 
-window.handleUploadImages = async function(e) {
+window.handleUploadImages = async function(e, code) {
     const files = Array.from(e.target.files);
+    let cacheData = window.AI_CACHE.get(code) || {};
+    if (!cacheData.customImages) cacheData.customImages = [];
+
     for (let f of files) {
         if (f.type.startsWith('image/')) {
             const b64 = await window.resizeImageBase64(f);
-            window.CUSTOM_IMAGES.push(b64);
+            cacheData.customImages.push(b64);
         }
     }
+    window.AI_CACHE.set(code, cacheData);
     window.saveStateToCache();
-    window.renderCustomImagesPreview();
+    window.renderCustomImagesPreview(code);
 };
 
-window.removeCustomImage = function(index) {
-    window.CUSTOM_IMAGES.splice(index, 1);
-    window.saveStateToCache();
-    window.renderCustomImagesPreview();
+window.removeCustomImage = function(code, index) {
+    let cacheData = window.AI_CACHE.get(code);
+    if (cacheData && cacheData.customImages) {
+        cacheData.customImages.splice(index, 1);
+        window.AI_CACHE.set(code, cacheData);
+        window.saveStateToCache();
+        window.renderCustomImagesPreview(code);
+    }
 };
 
-window.renderCustomImagesPreview = function() {
-    const container = document.getElementById('custom-upload-wrapper');
+window.renderCustomImagesPreview = function(code) {
+    const container = document.getElementById(`custom-upload-wrapper-${code}`);
     if(!container) return;
 
-    if (window.CUSTOM_IMAGES.length === 0) {
+    let cacheData = window.AI_CACHE.get(code) || {};
+    let customImages = cacheData.customImages || [];
+
+    // Cập nhật mượt mà thanh chèn tag @image mà không làm vỡ form đang edit
+    const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
+    if (actionWrapper) {
+        const toolbar = actionWrapper.querySelector('.insert-img-toolbar');
+        if (toolbar) {
+            toolbar.innerHTML = customImages.map((_, i) => `<button onclick="window.insertTextToPrompt(this, '@image${i+1}')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; font-weight:600; color:#475569; transition:0.2s;">+ @image${i+1}</button>`).join('');
+        }
+    }
+
+    if (customImages.length === 0) {
         container.innerHTML = `
-            <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; color:#475569; transition: 0.2s; display:flex; align-items:center; gap:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+            <label style="cursor:pointer; background:#f8fafc; border:1px dashed #cbd5e1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; transition: 0.2s; display:flex; align-items:center; gap:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                 <i class="ph ph-plus"></i> Add Reference
-                <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
+                <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event, '${code}')">
             </label>
         `;
         return;
     }
 
     let stackHtml = '';
-    const displayImgs = window.CUSTOM_IMAGES.slice(0, 3);
+    const displayImgs = customImages.slice(0, 3);
     displayImgs.forEach((img, i) => {
         let rotation = 0;
         if (i === 0 && displayImgs.length > 1) rotation = -5;
@@ -626,10 +646,10 @@ window.renderCustomImagesPreview = function() {
         stackHtml += `<img src="${img}" class="ref-stack-img" style="z-index: ${5 - i}; transform: rotate(${rotation}deg);">`;
     });
 
-    let expandedListHtml = window.CUSTOM_IMAGES.map((img, i) => `
+    let expandedListHtml = customImages.map((img, i) => `
         <div class="ref-expanded-thumb">
             <img src="${img}">
-            <button class="ref-expanded-del" onclick="window.removeCustomImage(${i})"><i class="ph ph-trash"></i></button>
+            <button class="ref-expanded-del" onclick="window.removeCustomImage('${code}', ${i})"><i class="ph ph-trash"></i></button>
         </div>
     `).join('');
 
@@ -642,7 +662,7 @@ window.renderCustomImagesPreview = function() {
             <div class="ref-expanded-dropdown">
                 <label class="ref-expanded-add">
                     <i class="ph ph-plus"></i> local upload
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event)">
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="window.handleUploadImages(event, '${code}')">
                 </label>
                 <div class="ref-expanded-scroll">
                     ${expandedListHtml}
@@ -689,12 +709,15 @@ window.handlePromptInput = function(code, textarea) {
     const words = textBefore.split(/[\s\n]+/);
     const lastWord = words[words.length - 1];
 
-    if (lastWord.startsWith('@') && window.CUSTOM_IMAGES.length > 0) {
+    let cacheData = window.AI_CACHE.get(code) || {};
+    let customImages = cacheData.customImages || [];
+
+    if (lastWord.startsWith('@') && customImages.length > 0) {
         let html = '<div style="font-size:11px; color:#64748b; margin-bottom:4px; padding:0 4px; font-weight:bold;">Select Reference:</div>';
         const query = lastWord.substring(1).toLowerCase().replace(/\s/g, ''); 
         
         let hasMatch = false;
-        window.CUSTOM_IMAGES.forEach((img, idx) => {
+        customImages.forEach((img, idx) => {
             const imgId = `image${idx+1}`;
             if (imgId.includes(query)) {
                 hasMatch = true;

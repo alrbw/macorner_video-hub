@@ -798,3 +798,47 @@ td {
     background-color: var(--bg-body) !important;
     box-shadow: 1px 1px 0 var(--border-light);
 }
+
+/* ================== PHỤC HỒI GIAO DIỆN NÚT ADD (+) MATRIX ================== */
+
+/* Khung bao bọc cần set relative để định vị nút + */
+.canva-matrix-wrapper { 
+    position: relative; 
+    display: inline-block; 
+    min-width: 100%; 
+}
+.canva-matrix-wrapper table { 
+    width: 100%; border-collapse: collapse; margin: 0; 
+}
+
+/* Định hình nút bấm thành hình tròn tròn nổi lên */
+.canva-add-btn { 
+    width: 26px; height: 26px; border-radius: 50%; background: #ffffff; 
+    border: 1.5px solid #cbd5e1; color: #64748b; font-size: 18px; font-weight: 500; 
+    display: flex; align-items: center; justify-content: center; cursor: pointer; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15); transition: all 0.2s ease; 
+    position: absolute; z-index: 30; /* Set cao hơn sticky header để không bị đè */
+    user-select: none; padding-bottom: 2px; box-sizing: border-box; 
+}
+.canva-add-btn:hover { 
+    background: #fff7ed; color: #ea580c; border-color: #ea580c; 
+    transform: scale(1.15); 
+}
+
+/* Ép vị trí nút E2 sang mép phải, căn giữa chiều dọc */
+.canva-add-btn.e2-btn { 
+    top: 50%; right: 0px; 
+    transform: translate(50%, -50%); 
+}
+.canva-add-btn.e2-btn:hover { 
+    transform: translate(50%, -50%) scale(1.15); 
+}
+
+/* Ép vị trí nút E4 xuống đáy, căn giữa chiều ngang */
+.canva-add-btn.e4-btn { 
+    bottom: 0px; left: 50%; 
+    transform: translate(-50%, 50%); 
+}
+.canva-add-btn.e4-btn:hover { 
+    transform: translate(-50%, 50%) scale(1.15); 
+}

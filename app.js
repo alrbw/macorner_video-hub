@@ -1130,25 +1130,44 @@ window.editPrompt = function(code) {
 window.savePromptEdit = function(code) {
     const textarea = document.getElementById(`prompt-textarea-${code}`);
     if(!textarea) return;
-    const newText = textarea.value;
+    
+    // Dùng .trim() để bỏ khoảng trắng thừa, tránh việc người dùng chỉ gõ thêm dấu cách cũng bị tính là đổi nội dung
+    const newText = textarea.value.trim(); 
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const editArea = document.getElementById(`prompt-edit-area-${code}`);
     
-    textDiv.innerText = newText; 
-    textDiv.style.display = 'block';
-    editArea.style.display = 'none';
-    
     const cacheData = window.AI_CACHE.get(code);
-    if(cacheData) {
+    let isChanged = false;
+
+    if (cacheData) {
+        const oldText = (cacheData.shootingPrompt || "").trim();
+        
+        // KIỂM TRA: Nếu nội dung MỚI khác nội dung CŨ
+        if (newText !== oldText) {
+            isChanged = true;
+            // Xóa trạng thái video cũ, đánh thức lại nút Generate Video
+            cacheData.videoGenStatus = '';
+            cacheData.videoGenTime = 0;
+        }
+        
         cacheData.shootingPrompt = newText;
         window.AI_CACHE.set(code, cacheData);
         window.saveStateToCache();
     }
     
+    textDiv.innerText = newText; 
+    textDiv.style.display = 'block';
+    editArea.style.display = 'none';
+    
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
     if (actionWrapper) {
         actionWrapper.querySelector('div:last-child').style.display = 'flex';
         actionWrapper.querySelector('.insert-img-toolbar').style.display = 'none';
+    }
+
+    // Nếu thực sự có thay đổi nội dung, vẽ lại toàn bộ View để Update giao diện nút bấm
+    if (isChanged) {
+        window.renderReviewView();
     }
 };
 

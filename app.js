@@ -1,6 +1,6 @@
 /**
  * MACORNER STRATEGY BUILDER
- * FULL AUTO V65 (Fix Tab Jumping, Modal Outside Click, Close Button Overlap)
+ * FULL AUTO V66 (Final: Isolate Images, Reset Video on Image Change, URL Fix)
  */
 
 if (!document.getElementById('modern-ui-styles')) {
@@ -67,11 +67,12 @@ window.CURRENT_MATRIX_LIMIT = 5;
 
 window.CURRENT_RENDERED_E2 = [];
 window.CURRENT_RENDERED_E4 = [];
-window.CUSTOM_IMAGES = []; 
 
 window.GLOBAL_CACHE_KEY = ""; 
 
 window.BYTEPLUS_TOTAL_TOKENS = parseInt(localStorage.getItem('bp_total_tokens')) || 0;
+
+// ĐÃ FIX LỖI URL (Xóa dấu ngoặc vuông)
 const API_BASE_URL = 'https://only-breanne-dzt-b25e098f.koyeb.app'; 
 
 window.saveStateToCache = function() {
@@ -86,8 +87,7 @@ window.saveStateToCache = function() {
         img: window.GLOBAL_IMAGE_URL,
         mE2: window.MANUAL_E2,
         mE4: window.MANUAL_E4,
-        limit: window.CURRENT_MATRIX_LIMIT,
-        customImages: window.CUSTOM_IMAGES
+        limit: window.CURRENT_MATRIX_LIMIT
     };
     localStorage.setItem(`macorner_state_${window.GLOBAL_CACHE_KEY}`, JSON.stringify(state));
 }
@@ -100,7 +100,6 @@ window.loadStateFromCache = function(key) {
     window.MIX_OPTIONS_CACHE.clear();
     window.MANUAL_E2 = [];
     window.MANUAL_E4 = [];
-    window.CUSTOM_IMAGES = [];
 
     if (raw) {
         try {
@@ -116,7 +115,6 @@ window.loadStateFromCache = function(key) {
             if (state.mE2) window.MANUAL_E2 = state.mE2 || [];
             if (state.mE4) window.MANUAL_E4 = state.mE4 || [];
             if (state.limit) window.CURRENT_MATRIX_LIMIT = state.limit;
-            if (state.customImages) window.CUSTOM_IMAGES = state.customImages || [];
             
             return true;
         } catch (e) {
@@ -198,8 +196,6 @@ document.getElementById('btnAnalyze').onclick = async function () {
     if (noMsg) noMsg.style.display = 'block';
     const oldPb = document.getElementById('pb-container');
     if (oldPb) oldPb.remove();
-
-    window.CUSTOM_IMAGES = []; 
 
     let tempTargetCode = inputVal;
     let tempProductBase = "";
@@ -313,21 +309,6 @@ window.renderMatrix = function(niche, limit, targetCode) {
     window.CURRENT_RENDERED_E4 = e4List.map(e => String(e.code).padStart(2, '0'));
 
     const container = document.getElementById('matrixContainer');
-
-    if (!document.getElementById('canva-btn-style')) {
-        document.head.insertAdjacentHTML('beforeend', `
-        <style id="canva-btn-style">
-            .matrix-scroll-area { width: 100%; overflow-x: auto; padding: 15px 25px 25px 15px; box-sizing: border-box; }
-            .canva-matrix-wrapper { position: relative; display: inline-block; min-width: 100%; }
-            .canva-matrix-wrapper table { width: 100%; border-collapse: collapse; margin: 0; }
-            .canva-add-btn { width: 26px; height: 26px; border-radius: 50%; background: #ffffff; border: 1.5px solid #cbd5e1; color: #64748b; font-size: 18px; font-weight: 500; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.15); transition: all 0.2s ease; position: absolute; z-index: 10; user-select: none; padding-bottom: 2px; box-sizing: border-box; }
-            .canva-add-btn:hover { background: #f8fafc; color: #f97316; border-color: #f97316; transform: scale(1.15); }
-            .canva-add-btn.e2-btn { top: 50%; right: 0px; transform: translate(50%, -50%); }
-            .canva-add-btn.e2-btn:hover { transform: translate(50%, -50%) scale(1.15); }
-            .canva-add-btn.e4-btn { bottom: 0px; left: 50%; transform: translate(-50%, 50%); }
-            .canva-add-btn.e4-btn:hover { transform: translate(-50%, 50%) scale(1.15); }
-        </style>`);
-    }
 
     let html = `<div class="matrix-scroll-area"><div class="canva-matrix-wrapper"><table><thead><tr><th style="min-width: 80px; text-align: center;">E4 \\ E2</th>`;
     e2List.forEach((e2) => { 
@@ -562,7 +543,7 @@ window.toggleFinalCode = function(fullCode, pairKey, checkbox) {
     window.renderReviewView();
 }
 
-// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK
+// XỬ LÝ UPLOAD ẢNH CUSTOM THEO DẠNG COLLAPSE STACK (Độc lập từng Code)
 window.resizeImageBase64 = function(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -596,6 +577,13 @@ window.handleUploadImages = async function(e, code) {
             cacheData.customImages.push(b64);
         }
     }
+
+    if (cacheData.videoGenStatus) {
+        cacheData.videoGenStatus = '';
+        cacheData.videoGenTime = 0;
+        setTimeout(() => window.renderReviewView(), 50); 
+    }
+
     window.AI_CACHE.set(code, cacheData);
     window.saveStateToCache();
     window.renderCustomImagesPreview(code);
@@ -605,6 +593,13 @@ window.removeCustomImage = function(code, index) {
     let cacheData = window.AI_CACHE.get(code);
     if (cacheData && cacheData.customImages) {
         cacheData.customImages.splice(index, 1);
+        
+        if (cacheData.videoGenStatus) {
+            cacheData.videoGenStatus = '';
+            cacheData.videoGenTime = 0;
+            setTimeout(() => window.renderReviewView(), 50); 
+        }
+
         window.AI_CACHE.set(code, cacheData);
         window.saveStateToCache();
         window.renderCustomImagesPreview(code);
@@ -618,7 +613,6 @@ window.renderCustomImagesPreview = function(code) {
     let cacheData = window.AI_CACHE.get(code) || {};
     let customImages = cacheData.customImages || [];
 
-    // Cập nhật mượt mà thanh chèn tag @image mà không làm vỡ form đang edit
     const actionWrapper = document.getElementById(`prompt-actions-wrapper-${code}`);
     if (actionWrapper) {
         const toolbar = actionWrapper.querySelector('.insert-img-toolbar');
@@ -808,8 +802,7 @@ window.renderReviewView = function() {
         : "";
 
     const tokenDisplayHtml = `<div class="token-counter" title="Total tokens used in this session" style="margin-right:15px; font-size:13px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 12px; border-radius:6px; font-weight:600;"><i class="ph ph-coins"></i> BP Tokens: <span id="bp-token-usage" style="margin-left:4px; font-weight:800; color:#ea580c;">${window.BYTEPLUS_TOTAL_TOKENS.toLocaleString()}</span></div>`;
-    
-    // Đã gỡ bỏ vùng Upload Ảnh khỏi thanh ngang Tổng
+
     const pbContainer = document.createElement('div');
     pbContainer.id = 'pb-container';
     pbContainer.style.cssText = 'position: relative; margin-bottom: 20px; padding: 15px; background: white; border: 1px solid var(--border-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:15px;';
@@ -899,7 +892,6 @@ window.renderReviewView = function() {
                 <div id="prompt-text-${code}" class="prompt-view-box">${ugcPromptResult}</div>
             ` : '';
 
-            // Đặt Nút Tải Ảnh Ngay Bên Cạnh Tiêu Đề Của Mỗi Code Riêng Biệt
             const builderHtml = hasCache ? `
                 <div id="prompt-builder-${code}" class="prompt-builder-wrapper" style="display:${showPromptBuilder ? 'block' : 'none'};">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -935,7 +927,6 @@ window.renderReviewView = function() {
         contents.appendChild(pane);
     });
 
-    // Sau khi render xong bảng, kích hoạt hàm vẽ Stack Ảnh cho từng Code
     window.FINAL_SELECTED_CODES.forEach(item => {
         window.renderCustomImagesPreview(item.fullCode);
     });
@@ -1017,7 +1008,7 @@ window.generateAIScript = async function(fullCode, btn) {
                 fullCode, niche: window.CURRENT_NICHE, productBase,
                 scrapedData: window.GLOBAL_SCRAPED_DATA,
                 imageUrl: window.GLOBAL_IMAGE_URL,
-                customImages: [], // Script gốc luôn sinh ra từ ảnh Web (Hoặc Prompt không cần ảnh)
+                customImages: [], 
                 spentCodes, eData
             })
         });
@@ -1133,9 +1124,6 @@ window.generateShootingPrompt = async function(fullCode) {
         
         window.AI_CACHE.set(fullCode, cacheData);
         window.saveStateToCache();
-        
-        // Vẽ lại cục Stack ảnh
-        window.renderCustomImagesPreview(fullCode);
     } catch (err) {
         resultBox.innerHTML = `<span style="color:red;">❌ Error: ${err.message}</span>`;
     } finally {
@@ -1160,11 +1148,11 @@ window.editPrompt = function(code) {
     textarea.value = textDiv.innerText;
 };
 
+// ĐÃ CẬP NHẬT: So sánh Text, gõ khoảng trắng không bị mất trạng thái Video
 window.savePromptEdit = function(code) {
     const textarea = document.getElementById(`prompt-textarea-${code}`);
     if(!textarea) return;
     
-    // Dùng .trim() để bỏ khoảng trắng thừa, tránh việc người dùng chỉ gõ thêm dấu cách cũng bị tính là đổi nội dung
     const newText = textarea.value.trim(); 
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const editArea = document.getElementById(`prompt-edit-area-${code}`);
@@ -1175,10 +1163,8 @@ window.savePromptEdit = function(code) {
     if (cacheData) {
         const oldText = (cacheData.shootingPrompt || "").trim();
         
-        // KIỂM TRA: Nếu nội dung MỚI khác nội dung CŨ
         if (newText !== oldText) {
             isChanged = true;
-            // Xóa trạng thái video cũ, đánh thức lại nút Generate Video
             cacheData.videoGenStatus = '';
             cacheData.videoGenTime = 0;
         }
@@ -1198,7 +1184,6 @@ window.savePromptEdit = function(code) {
         actionWrapper.querySelector('.insert-img-toolbar').style.display = 'none';
     }
 
-    // Nếu thực sự có thay đổi nội dung, vẽ lại toàn bộ View để Update giao diện nút bấm
     if (isChanged) {
         window.renderReviewView();
     }
@@ -1313,6 +1298,7 @@ window.generateVideo = async function(fullCode) {
                                 prompt: cData.shootingPrompt
                             })
                         });
+                        alert(`✅ Video cho mã [${fullCode}] đã tạo xong và lưu vào Cloud Local Gallery!`);
                     } catch(errGal) {
                         console.error("Lưu Gallery Cloud thất bại:", errGal);
                     }
@@ -1845,7 +1831,7 @@ window.updateGalleryUI = function() {
 
     let sidebarHtml = `
         <div onclick="window.currentGalleryTarget='all'; window.updateGalleryUI()" style="padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; font-size:13px; transition: 0.2s; ${window.currentGalleryTarget === 'all' ? 'background: #ea580c; color: white;' : 'background: #f8fafc; color: #64748b;'}">
-            ALL <br><span style="font-size:11px; opacity:0.8;">${groupCounts['ALL']}</span>
+            ALL <br><span style="font-size:12px; opacity:0.8;">${groupCounts['ALL']}</span>
         </div>`;
     
     Object.keys(groupCounts).forEach(tc => {
@@ -1916,6 +1902,39 @@ window.updateGalleryUI = function() {
     if(gridDiv) gridDiv.innerHTML = cardsHtml;
 };
 
+window.downloadGalleryVideo = async function(url, code, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i>';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(url);
+        if(!response.ok) throw new Error("CORS or Network issue");
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `Macorner_${code}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+        
+        btn.innerHTML = '<i class="ph ph-check"></i>';
+        setTimeout(() => { 
+            btn.innerHTML = originalHtml; 
+            btn.disabled = false; 
+        }, 2000);
+
+    } catch(e) {
+        window.open(url, '_blank');
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+};
+
 window.toggleGalleryFavorite = async function(id) {
     try {
         const item = window.GALLERY_DATA_CACHE.find(s => s.id === id);
@@ -1971,48 +1990,7 @@ window.clearGallery = async function() {
 // ==========================================
 document.addEventListener('click', function(e) {
     const modal = document.getElementById('script-modal');
-    // Nếu bấm đúng vào phần vùng xám mờ (overlay) bao quanh, thì đóng modal lại
     if (modal && e.target === modal) {
         modal.style.display = 'none';
     }
 });
-// ==========================================
-// HÀM TẢI VIDEO THÔNG MINH TRONG GALLERY
-// ==========================================
-window.downloadGalleryVideo = async function(url, code, btn) {
-    // Lưu trạng thái nút ban đầu để phục hồi
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i>';
-    btn.disabled = true;
-
-    try {
-        // Cố gắng fetch để ép trình duyệt tải trực tiếp thành file .mp4
-        const response = await fetch(url);
-        if(!response.ok) throw new Error("CORS or Network issue");
-        
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `Macorner_${code}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
-        
-        // Báo hiệu tải thành công
-        btn.innerHTML = '<i class="ph ph-check"></i>';
-        setTimeout(() => { 
-            btn.innerHTML = originalHtml; 
-            btn.disabled = false; 
-        }, 2000);
-
-    } catch(e) {
-        // Fallback: Nếu Server BytePlus chặn CORS không cho fetch ngầm, 
-        // hệ thống sẽ bật video sang tab mới để user ấn Ctrl+S (hoặc bấm chuột phải -> Lưu video).
-        window.open(url, '_blank');
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-    }
-};

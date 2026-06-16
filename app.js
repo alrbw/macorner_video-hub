@@ -1150,7 +1150,8 @@ window.editPrompt = function(code) {
     
     textDiv.style.display = 'none';
     editArea.style.display = 'block';
-    textarea.value = textDiv.innerText;
+    const cacheData = window.AI_CACHE.get(code);
+    textarea.value = (cacheData && cacheData.shootingPrompt) ? cacheData.shootingPrompt : textDiv.textContent;
 };
 
 window.savePromptEdit = function(code) {
@@ -1178,7 +1179,7 @@ window.savePromptEdit = function(code) {
         window.saveStateToCache();
     }
     
-    textDiv.innerText = newText; 
+    textDiv.textContent = newText; 
     textDiv.style.display = 'block';
     editArea.style.display = 'none';
     
@@ -1199,7 +1200,7 @@ window.cancelPromptEdit = function(code) {
     const textDiv = document.getElementById(`prompt-text-${code}`);
     const editArea = document.getElementById(`prompt-edit-area-${code}`);
     
-    textDiv.innerText = originalText;
+    textDiv.textContent = originalText;
     textDiv.style.display = 'block';
     editArea.style.display = 'none';
     
